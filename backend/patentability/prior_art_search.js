@@ -107,7 +107,7 @@ async function searchPriorArt({ code, filename, tier = 'free', vectorStore }) {
     results = await vectorStore.search({
       query:         text,
       limit:         searchTier.max_results,
-      source_tiers:  searchTier.source_tiers,
+      source_tiers:  searchTier.search_sources,
       source_weights: weights,
     });
   } catch (err) {
