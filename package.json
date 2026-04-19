@@ -30,6 +30,7 @@
     "db:down": "docker compose -f infra/docker/docker-compose.yml down",
     "db:logs": "docker compose -f infra/docker/docker-compose.yml logs -f postgres",
     "db:reset": "docker compose -f infra/docker/docker-compose.yml down -v",
-    "migrate": "node backend/shared/run_migrations.js"
+    "migrate": "node backend/shared/run_migrations.js",
+    "ingest": "node backend/patentability/ingest.js"
   }
 }
