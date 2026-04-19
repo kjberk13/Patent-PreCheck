@@ -1,8 +1,41 @@
+# Patent PreCheck — Netlify deploy config (repo-linked build).
+#
+# This file replaces the legacy per-website netlify.toml. The previous
+# drag-deploy workflow (zip apps/website/, drop onto app.netlify.com) no
+# longer works now that the site has real backend functions — the Lambda
+# bundler needs access to backend/ at build time, which a drag-deploy of
+# apps/website/ alone cannot provide.
+#
+# One-time setup in Netlify UI:
+#   1. Connect the Netlify site to github.com/kjberk13/Patent-PreCheck
+#   2. Base directory: (blank — repo root)
+#   3. Branch to deploy: main
+#   4. Build command: (auto; defined below)
+#   5. Publish directory: (auto; defined below)
+#
+# After setup, any push to main triggers an auto-build + deploy.
+# Environment variables already present in Netlify (Phase 2.5): ANTHROPIC_API_KEY,
+# ANTHROPIC_MODEL, VOYAGE_API_KEY, EMBEDDING_PROVIDER, EMBEDDING_MODEL,
+# EMBEDDING_DIMENSIONS, DATABASE_URL, DATABASE_URL_POOLED.
+
 [build]
-  publish = "apps/website"
+  publish  = "apps/website"
+  # esbuild pulls backend/ into the function bundle at build time.
+  # No explicit build command needed — Netlify auto-detects Node deps.
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Keep pg out of the Lambda bundle. It's a transitive dep from
+# backend/shared/embeddings.js via a lazy require() that never fires in
+# the Netlify runtime (cache: NullCache), but esbuild bundles lazy
+# requires by default. Belt-and-suspenders to stay fast on cold start.
+[functions."analyze"]
+  external_node_modules = ["pg"]
 
 [[headers]]
   for = "/*"
   [headers.values]
-    X-Frame-Options = "DENY"
+    X-Frame-Options        = "DENY"
     X-Content-Type-Options = "nosniff"

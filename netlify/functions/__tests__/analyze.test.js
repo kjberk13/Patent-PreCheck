@@ -11,11 +11,9 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const path = require('node:path');
-const Module = require('node:module');
 const nock = require('nock');
 
-const { EMBEDDING_DIMENSIONS } = require('../../shared/embeddings.js');
+const { EMBEDDING_DIMENSIONS } = require('../../../backend/shared/embeddings.js');
 
 // ---------------------------------------------------------------------
 // Neon module substitution
@@ -49,7 +47,7 @@ require.cache[neonModulePath] = {
 };
 
 // Now require the function under test (will pick up our stubbed neon).
-const { handler } = require('../netlify_function.js');
+const { handler } = require('../analyze.js');
 
 // ---------------------------------------------------------------------
 // Fixtures

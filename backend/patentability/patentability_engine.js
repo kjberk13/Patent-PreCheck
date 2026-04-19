@@ -263,7 +263,12 @@ async function scorePatentability({ code, filename, priorArtContext = [], apiKey
     pillar_weights: PILLAR_WEIGHTS,
 
     top_strengths:     llmResult.top_strengths || [],
-    top_opportunities: llmResult.top_opportunities || [],
+    top_opportunities: (llmResult.top_opportunities || []).map((o, i) => ({
+      ...o,
+      // analyze.html renders o.area — map LLM's pillar name to a human-readable area label.
+      area: o.area || humanizePillar(o.pillar),
+      num:  o.num ?? i + 1,
+    })),
 
     technology_domain:     llmResult.technology_domain || 'Software',
     ai_contribution_level: llmResult.ai_contribution_level || 'medium',
@@ -273,6 +278,19 @@ async function scorePatentability({ code, filename, priorArtContext = [], apiKey
     analyzed_at:         new Date().toISOString(),
     algorithm_version:   '1.0',
   };
+}
+
+const PILLAR_AREA_LABELS = {
+  eligibility:      'Eligibility (§101)',
+  novelty:          'Novelty (§102)',
+  non_obvious:      'Non-obviousness (§103)',
+  utility:          'Utility (§101)',
+  filing_readiness: 'Filing readiness (§112)',
+};
+
+function humanizePillar(pillar) {
+  if (typeof pillar !== 'string') return '';
+  return PILLAR_AREA_LABELS[pillar] || pillar;
 }
 
 function clamp01_100(n) {

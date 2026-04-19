@@ -39,16 +39,17 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const { neon } = require('@neondatabase/serverless');
 
-const { scorePatentability } = require('./patentability_engine.js');
-const { searchPriorArt } = require('./prior_art_search.js');
-const { buildInventionSummary } = require('./invention_summary.js');
-const { Embeddings } = require('../shared/embeddings.js');
-const { NullCache } = require('../shared/embedding_cache.js');
+const { scorePatentability } = require('../../backend/patentability/patentability_engine.js');
+const { searchPriorArt } = require('../../backend/patentability/prior_art_search.js');
+const { buildInventionSummary } = require('../../backend/patentability/invention_summary.js');
+const { Embeddings } = require('../../backend/shared/embeddings.js');
+const { NullCache } = require('../../backend/shared/embedding_cache.js');
 const {
   VectorSearchAdapter,
   neonRunQuery,
-} = require('../shared/vector_search_adapter.js');
-const registry = require('./workers/registry.js');
+} = require('../../backend/shared/vector_search_adapter.js');
+// Metadata-only registry — keeps the Lambda bundle out of pg + worker classes.
+const registry = require('../../backend/patentability/workers/registry_metadata.js');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -80,8 +81,7 @@ exports.handler = async function handler(event) {
   const { code, filename } = body;
   if (!code || typeof code !== 'string' || code.trim().length < 10) {
     return respond(400, {
-      error:
-        'Please provide code or a description of your invention (at least 10 characters).',
+      error: 'Please provide code or a description of your invention (at least 10 characters).',
     });
   }
 

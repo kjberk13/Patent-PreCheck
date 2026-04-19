@@ -26,12 +26,14 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "node scripts/syntax-check.js",
-    "test": "node --test backend/**/__tests__/*.test.js",
+    "test": "node --test backend/**/__tests__/*.test.js netlify/**/__tests__/*.test.js",
     "db:up": "docker compose -f infra/docker/docker-compose.yml up -d",
     "db:down": "docker compose -f infra/docker/docker-compose.yml down",
     "db:logs": "docker compose -f infra/docker/docker-compose.yml logs -f postgres",
     "db:reset": "docker compose -f infra/docker/docker-compose.yml down -v",
     "migrate": "node backend/shared/run_migrations.js",
-    "ingest": "node backend/patentability/ingest.js"
+    "ingest": "node backend/patentability/ingest.js",
+    "ingest:delta": "node backend/patentability/ingest.js --all --mode=delta",
+    "health-ping": "node backend/shared/health_ping.js"
   }
 }
