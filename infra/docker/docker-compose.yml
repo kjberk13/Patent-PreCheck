@@ -1,0 +1,43 @@
+# Local pgvector for Patent PreCheck development.
+#
+# Invoke from the repo root so variable interpolation picks up the root .env:
+#   npm run db:up       # docker compose -f infra/docker/docker-compose.yml up -d
+#   npm run db:down
+#   npm run db:reset    # down + drop the named volume
+#
+# Credentials and the published port come from .env (POSTGRES_USER,
+# POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_PORT). Defaults below match
+# .env.example so `docker compose up` works out of the box on a clean
+# clone even before .env is created.
+
+name: patentprecheck
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: patentprecheck-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ppc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ppc_dev_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-patentprecheck}
+    ports:
+      # Host ${POSTGRES_PORT} (default 5433 to avoid clashing with a system
+      # Postgres on 5432) maps to the container's default 5432.
+      - '${POSTGRES_PORT:-5433}:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-ppc} -d ${POSTGRES_DB:-patentprecheck}',
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  pgdata:
+    name: patentprecheck_pgdata

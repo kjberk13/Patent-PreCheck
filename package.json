@@ -9,7 +9,9 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0"
+    "@anthropic-ai/sdk": "^0.39.0",
+    "dotenv": "^16.4.5",
+    "pg": "^8.12.0"
   },
   "devDependencies": {
     "eslint": "^9.0.0",
@@ -17,6 +19,11 @@
   },
   "scripts": {
     "lint": "eslint backend/",
-    "format": "prettier --write backend/"
+    "format": "prettier --write backend/",
+    "db:up": "docker compose -f infra/docker/docker-compose.yml up -d",
+    "db:down": "docker compose -f infra/docker/docker-compose.yml down",
+    "db:logs": "docker compose -f infra/docker/docker-compose.yml logs -f postgres",
+    "db:reset": "docker compose -f infra/docker/docker-compose.yml down -v",
+    "migrate": "node backend/shared/run_migrations.js"
   }
 }
