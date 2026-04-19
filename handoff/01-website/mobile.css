@@ -1,0 +1,62 @@
+/* ── Patent PreCheck — Universal Mobile Rules ──
+   Shared across all pages. Include with:
+   <link rel="stylesheet" href="mobile.css">
+*/
+
+@media (max-width: 760px) {
+  /* Nav hiding (for pages using hardcoded nav) */
+  nav .nav-links, nav a.nav-cta { display: none !important; }
+  nav { padding: 0 16px !important; }
+
+  /* Container padding */
+  .container { padding: 0 20px !important; }
+
+  /* Heading sizing */
+  h1 { font-size: clamp(32px, 8vw, 48px) !important; line-height: 1.15 !important; }
+  h2 { font-size: clamp(22px, 5vw, 32px) !important; line-height: 1.25 !important; }
+  h3 { font-size: clamp(18px, 4vw, 24px) !important; }
+
+  /* Section padding reduction */
+  section[style*="padding:80px"] { padding: 48px 20px !important; }
+  section[style*="padding:90px"] { padding: 56px 20px !important; }
+  section[style*="padding:72px"] { padding: 48px 20px !important; }
+  section[style*="padding:64px"] { padding: 44px 20px !important; }
+  section[style*="padding:56px"] { padding: 40px 20px !important; }
+
+  /* Grid collapses */
+  div[style*="grid-template-columns:repeat(4"] { grid-template-columns: 1fr 1fr !important; gap: 14px !important; }
+  div[style*="grid-template-columns:repeat(3"] { grid-template-columns: 1fr !important; gap: 14px !important; }
+  div[style*="grid-template-columns:1fr 1fr 1fr"] { grid-template-columns: 1fr !important; gap: 16px !important; }
+  div[style*="grid-template-columns:1fr 1fr"]:not([style*="1fr 1fr 1fr"]) { grid-template-columns: 1fr !important; gap: 14px !important; }
+  div[style*="grid-template-columns:2fr 1fr"] { grid-template-columns: 1fr !important; gap: 20px !important; }
+  div[style*="grid-template-columns:1fr 2fr"] { grid-template-columns: 1fr !important; gap: 20px !important; }
+
+  /* Common inline card padding reductions */
+  div[style*="padding:40px"] { padding: 24px !important; }
+  div[style*="padding:36px"] { padding: 22px !important; }
+  div[style*="padding:32px"] { padding: 22px !important; }
+
+  /* Fix any oversized inline font-sizes */
+  [style*="font-size:40px"] { font-size: 30px !important; }
+  [style*="font-size:48px"] { font-size: 32px !important; }
+  [style*="font-size:56px"] { font-size: 36px !important; }
+
+  /* Body padding if sections lack explicit padding */
+  body > section:not([style*="padding"]), main > section:not([style*="padding"]) {
+    padding-left: 20px !important; padding-right: 20px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .container { padding: 0 16px !important; }
+
+  /* On narrow phones, collapse all multi-col grids to single column */
+  div[style*="grid-template-columns:repeat(4"] { grid-template-columns: 1fr !important; }
+  div[style*="grid-template-columns:1fr 1fr"]:not([style*="1fr 1fr 1fr"]) { grid-template-columns: 1fr !important; }
+
+  /* Smaller section padding */
+  section[style*="padding:80px"] { padding: 40px 16px !important; }
+  section[style*="padding:90px"] { padding: 44px 16px !important; }
+  section[style*="padding:72px"] { padding: 40px 16px !important; }
+  section[style*="padding:64px"] { padding: 36px 16px !important; }
+}

@@ -67,7 +67,7 @@
       content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
       background: var(--green);
     }
-    .promise-num { font-family: var(--serif); font-size: 48px; color: rgba(255,255,255,.06); line-height: 1; margin-bottom: 4px; }
+    .promise-num { font-family: var(--serif); font-size: 48px; color: rgba(255,255,255,.55); line-height: 1; margin-bottom: 4px; }
     .promise-title { font-family: var(--serif); font-size: 20px; color: #fff; margin-bottom: 10px; }
     .promise-text { font-size: 14px; color: rgba(255,255,255,.65); line-height: 1.7; }
     .promise-highlight { color: var(--green); font-weight: 600; }
@@ -75,23 +75,23 @@
     /* ── Alert flow ── */
     .flow-strip {
       background: var(--card); border: 1px solid var(--border); border-radius: 20px;
-      padding: 40px 32px; margin-top: 48px; overflow-x: auto;
+      padding: 56px 40px; margin-top: 48px; overflow-x: auto;
     }
-    .flow-steps { display: flex; align-items: flex-start; gap: 0; min-width: 600px; }
+    .flow-steps { display: flex; align-items: flex-start; gap: 0; min-width: 880px; }
     .flow-step { flex: 1; text-align: center; position: relative; }
     .flow-step + .flow-step::before {
-      content: '→'; position: absolute; left: -12px; top: 22px;
-      font-size: 20px; color: #CBD5E0;
+      content: '→'; position: absolute; left: -14px; top: 32px;
+      font-size: 26px; color: #CBD5E0;
     }
     .flow-icon {
-      width: 48px; height: 48px; border-radius: 50%;
+      width: 76px; height: 76px; border-radius: 50%;
       background: var(--bg); border: 2px solid var(--border);
       display: flex; align-items: center; justify-content: center;
-      font-size: 22px; margin: 0 auto 12px;
+      font-size: 36px; margin: 0 auto 18px;
     }
     .flow-icon.active { background: rgba(29,158,117,.1); border-color: var(--green); }
-    .flow-label { font-size: 13px; font-weight: 600; color: var(--navy); margin-bottom: 4px; }
-    .flow-desc { font-size: 11px; color: var(--muted); line-height: 1.5; padding: 0 8px; }
+    .flow-label { font-size: 17px; font-weight: 600; color: var(--navy); margin-bottom: 8px; }
+    .flow-desc { font-size: 14px; color: var(--muted); line-height: 1.55; padding: 0 14px; }
 
     /* ── Coverage categories ── */
     .coverage-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-top: 40px; }
@@ -222,6 +222,7 @@ footer p{font-size:13px;color:rgba(255,255,255,.4)}
 footer a{color:rgba(255,255,255,.55);text-decoration:none;margin:0 10px}
 footer a:hover{color:#1D9E75}
 </style>
+  <link rel="stylesheet" href="mobile.css">
   <script src="nav.js" defer></script>
 </head>
 <body style="padding-top:68px">

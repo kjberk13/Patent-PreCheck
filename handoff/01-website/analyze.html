@@ -74,65 +74,98 @@
     .error-box p{font-size:13px;color:#742A2A;margin-bottom:10px}
     .btn-retry{background:none;border:1.5px solid var(--red);color:var(--red);padding:7px 18px;
       border-radius:7px;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--sans)}
-    /* Results */
+    /* Results - new two-score layout */
     #results{display:none;max-width:860px;margin:40px auto 72px;padding:0 24px}
     #results.visible{display:block}
-    .res-header{background:var(--navy);border-radius:20px;padding:32px 36px;margin-bottom:20px;
-      display:grid;grid-template-columns:auto 1fr;gap:28px;align-items:center}
-    .score-ring{width:88px;height:88px;border-radius:50%;border:5px solid #4DD9A8;
-      display:flex;align-items:center;justify-content:center;flex-shrink:0}
-    .score-ring.nr{border-color:#E24B4A}.score-ring.bd{border-color:#EF9F27}
-    .score-ring.st{border-color:#4DD9A8}.score-ring.fr{border-color:#1D9E75}
-    .score-num{font-family:var(--serif);font-size:34px;font-weight:700;color:#4DD9A8}
-    .score-ring.nr .score-num{color:#E24B4A}.score-ring.bd .score-num{color:#EF9F27}
-    .score-ring.fr .score-num{color:#1D9E75}
-    .res-band{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#4DD9A8;margin-bottom:5px}
-    .res-title{font-family:var(--serif);font-size:20px;color:#fff;margin-bottom:7px}
-    .res-summary{font-size:13px;color:rgba(255,255,255,.7);line-height:1.6;max-width:480px}
-    .res-tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-    .res-tag{font-size:11px;padding:2px 9px;border-radius:9px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.65)}
-    /* Bands bar */
-    .bands-bar{display:grid;grid-template-columns:repeat(4,1fr);border-radius:10px;overflow:hidden;margin-bottom:22px}
-    .bband{padding:10px 10px;text-align:center}
-    .bband.active{outline:2.5px solid var(--green);outline-offset:-2px;border-radius:2px}
-    .bband-s{font-size:13px;font-weight:600}.bband-l{font-size:10px;margin-top:2px}
-    /* Dimensions */
-    .sec-title{font-family:var(--serif);font-size:19px;color:var(--navy);margin-bottom:14px}
-    .dims-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:22px}
-    .dim-card{background:#fff;border:1px solid var(--border);border-radius:13px;padding:18px}
-    .dim-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-    .dim-label{font-size:12px;font-weight:600;color:var(--navy)}
-    .dim-score{font-size:22px;font-weight:700;font-family:var(--serif);color:var(--green)}
-    .dim-score.mid{color:var(--amber)}.dim-score.low{color:var(--red)}
-    .dim-bar{height:4px;background:#E2E8F4;border-radius:3px;margin-bottom:9px}
-    .dim-fill{height:4px;border-radius:3px;background:var(--green)}
-    .dim-fill.mid{background:var(--amber)}.dim-fill.low{background:var(--red)}
-    .dim-finding{font-size:12px;color:#4A5568;line-height:1.5;margin-bottom:5px}
-    .dim-opp{font-size:12px;color:#1D9E75;font-style:italic;line-height:1.5}
-    /* Opps */
-    .opps-list{display:flex;flex-direction:column;gap:10px;margin-bottom:22px}
-    .opp-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 18px;
-      display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start}
-    .opp-ico{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;
-      justify-content:center;font-size:15px;flex-shrink:0}
-    .opp-ico.high{background:#EAF3DE}.opp-ico.medium{background:#FAEEDA}.opp-ico.low{background:#EEF2FF}
-    .opp-area{font-size:13px;font-weight:600;color:var(--navy);margin-bottom:2px}
-    .opp-action{font-size:13px;color:#4A5568;line-height:1.5}
-    .opp-badge{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
-      padding:2px 8px;border-radius:8px;white-space:nowrap;align-self:flex-start;margin-top:2px}
-    .opp-badge.high{background:#EAF3DE;color:#1D9E75}
-    .opp-badge.medium{background:#FAEEDA;color:#B7791F}
+    .demo-banner{background:rgba(239,159,39,.08);border:1px solid rgba(239,159,39,.25);border-radius:10px;
+      padding:10px 16px;margin-bottom:18px;display:flex;align-items:center;gap:10px;font-size:13px;color:#B7791F;line-height:1.5}
+    .demo-banner strong{color:#744210;font-weight:600}
+    .res-meta{display:flex;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:18px;font-size:12px;color:#718096}
+    .res-meta-title{font-family:var(--serif);font-size:20px;color:var(--navy);font-weight:700}
+    .res-meta-id{font-family:monospace;font-size:11px}
+    .res-scorecard{background:var(--navy);border-radius:18px;padding:24px 24px 22px;margin-bottom:22px}
+    .res-scores{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding-bottom:18px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:18px}
+    .res-score-tile{background:rgba(133,183,235,.06);border:1px solid rgba(133,183,235,.28);border-radius:12px;padding:14px}
+    .res-score-tile.band-not_ready{background:rgba(226,75,74,.06);border-color:rgba(226,75,74,.28)}
+    .res-score-tile.band-building{background:rgba(239,159,39,.06);border-color:rgba(239,159,39,.28)}
+    .res-score-tile.band-close_to_ready{background:rgba(133,183,235,.06);border-color:rgba(133,183,235,.28)}
+    .res-score-tile.band-file_ready{background:rgba(77,217,168,.06);border-color:rgba(77,217,168,.28)}
+    .res-score-row{display:flex;align-items:center;gap:13px}
+    .res-score-ring{width:62px;height:62px;border-radius:50%;border:3px solid #85B7EB;display:flex;align-items:center;
+      justify-content:center;font-family:var(--serif);font-size:25px;font-weight:700;color:#85B7EB;flex-shrink:0}
+    .band-not_ready .res-score-ring{border-color:#E24B4A;color:#E24B4A}
+    .band-building .res-score-ring{border-color:#EF9F27;color:#EF9F27}
+    .band-close_to_ready .res-score-ring{border-color:#85B7EB;color:#85B7EB}
+    .band-file_ready .res-score-ring{border-color:#4DD9A8;color:#4DD9A8}
+    .res-score-label{font-size:10px;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px}
+    .res-score-band{font-family:var(--serif);font-size:18px;color:#fff;font-weight:700;line-height:1.15}
+    .res-score-q{font-size:12px;color:rgba(255,255,255,.5);margin-top:3px;line-height:1.3}
+    .res-summary-text{font-size:13px;color:rgba(255,255,255,.85);line-height:1.65}
+    .sec-eyebrow{font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#1D9E75;margin-bottom:12px}
+    .pillars-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:26px}
+    .pillar{background:#fff;border:1px solid var(--border);border-radius:12px;padding:18px}
+    .pillar-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+    .pillar-q{font-size:13px;font-weight:600;color:var(--navy);margin-bottom:3px}
+    .pillar-statute{font-size:11px;color:#718096}
+    .pillar-score{font-family:var(--serif);font-size:28px;font-weight:700;line-height:1;color:#4DD9A8}
+    .pillar-score.band-not_ready{color:#E24B4A}
+    .pillar-score.band-building{color:#EF9F27}
+    .pillar-score.band-close_to_ready{color:#85B7EB}
+    .pillar-score.band-file_ready{color:#4DD9A8}
+    .pillar-bar{height:4px;background:var(--border);border-radius:2px;margin-bottom:12px;overflow:hidden}
+    .pillar-bar-fill{height:100%;background:#4DD9A8}
+    .pillar-bar-fill.band-not_ready{background:#E24B4A}
+    .pillar-bar-fill.band-building{background:#EF9F27}
+    .pillar-bar-fill.band-close_to_ready{background:#85B7EB}
+    .pillar-bar-fill.band-file_ready{background:#4DD9A8}
+    .pillar-finding{font-size:13px;color:#2D3748;line-height:1.55;margin-bottom:6px}
+    .pillar-strengthen{font-size:12px;line-height:1.5;color:#1D9E75}
+    .pillar-strengthen.band-not_ready{color:#E24B4A}
+    .pillar-strengthen.band-building{color:#EF9F27}
+    .pillar-strengthen.band-close_to_ready{color:#378ADD}
+    .pillar-strengthen.band-file_ready{color:#1D9E75}
+    .opps-list{display:flex;flex-direction:column;gap:10px;margin-bottom:26px}
+    .opp{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 18px;
+      display:grid;grid-template-columns:28px 1fr auto;gap:14px;align-items:start}
+    .opp-num{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-family:var(--serif);font-size:13px;font-weight:700}
+    .opp-num.high{background:#FAEEDA;color:#B7791F}
+    .opp-num.medium{background:#E6F1FB;color:#0C447C}
+    .opp-num.low{background:#EEF2FF;color:#718096}
+    .opp-area{font-size:13px;font-weight:600;color:var(--navy);margin-bottom:4px}
+    .opp-action{font-size:12px;color:#4A5568;line-height:1.55}
+    .opp-badge{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+      padding:3px 9px;border-radius:8px;white-space:nowrap}
+    .opp-badge.high{background:#FAEEDA;color:#B7791F}
+    .opp-badge.medium{background:#E6F1FB;color:#0C447C}
     .opp-badge.low{background:#EEF2FF;color:#718096}
-    /* Unlock CTA */
-    .unlock{background:var(--navy);border-radius:18px;padding:32px 36px;text-align:center}
-    .unlock h3{font-family:var(--serif);font-size:22px;color:#fff;margin-bottom:9px}
-    .unlock p{font-size:13px;color:rgba(255,255,255,.7);max-width:440px;margin:0 auto 20px;line-height:1.6}
-    .unlock-feats{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:22px}
-    .unlock-feat{background:rgba(255,255,255,.08);border-radius:20px;padding:4px 12px;font-size:11px;color:rgba(255,255,255,.8)}
-    .btn-unlock{background:#1D9E75;color:#fff;border:none;padding:13px 32px;border-radius:9px;
-      font-size:14px;font-weight:600;cursor:pointer;font-family:var(--sans);transition:background .15s}
-    .btn-unlock:hover{background:#188f68}
-    .unlock-note{font-size:11px;color:rgba(255,255,255,.35);margin-top:8px}
+    .priorart{background:#fff;border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:26px}
+    .priorart-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+    .priorart-count{display:flex;align-items:center;gap:10px;flex-shrink:0}
+    .priorart-ico{width:36px;height:36px;border-radius:50%;background:#F4F7FF;display:flex;align-items:center;justify-content:center}
+    .priorart-num{font-family:var(--serif);font-size:18px;color:var(--navy);font-weight:700}
+    .priorart-text{font-size:13px;color:#4A5568;line-height:1.6;flex:1;min-width:240px}
+    .priorart-text strong{color:var(--navy);font-weight:600}
+    .report-card{background:var(--navy);border-radius:18px;padding:32px;text-align:center;margin-bottom:18px}
+    .report-eyebrow{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#4DD9A8;margin-bottom:10px}
+    .report-price{font-family:var(--serif);font-size:26px;color:#fff;margin-bottom:10px;font-weight:700}
+    .report-desc{font-size:14px;color:rgba(255,255,255,.7);max-width:520px;margin:0 auto 22px;line-height:1.6}
+    .report-bullets{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;max-width:480px;margin:0 auto 22px;text-align:left}
+    .report-bullet{font-size:12px;color:rgba(255,255,255,.78);padding:5px 0}
+    .report-soon{background:rgba(239,159,39,.2);color:#EF9F27;padding:1px 6px;border-radius:8px;font-size:9px;font-weight:600;letter-spacing:.06em;margin-left:4px}
+    .btn-report{background:#1D9E75;color:#fff;border:none;padding:13px 30px;border-radius:9px;
+      font-size:15px;font-weight:600;cursor:pointer;font-family:var(--sans)}
+    .btn-report:hover{background:#188f68}
+    .report-note{font-size:11px;color:rgba(255,255,255,.4);margin-top:12px}
+    .privacy-banner{background:rgba(29,158,117,.06);border:1px solid rgba(29,158,117,.2);border-radius:10px;
+      padding:14px 18px;margin-bottom:14px;display:flex;align-items:center;gap:12px}
+    .privacy-ico{width:24px;height:24px;border-radius:50%;background:#1D9E75;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .privacy-text{font-size:13px;color:#1D9E75;line-height:1.5}
+    .privacy-text strong{font-weight:600}
+    .res-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+    .res-action{background:#fff;border:1px solid var(--border);color:#4A5568;padding:10px 18px;border-radius:8px;
+      font-size:13px;cursor:pointer;font-family:var(--sans);font-weight:500}
+    .res-action:hover{border-color:var(--navy);color:var(--navy)}
     /* Pre-results upsell */
     .upsell{max-width:860px;margin:52px auto 68px;padding:0 24px}
     .upsell-ey{text-align:center;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#1D9E75;margin-bottom:10px}
@@ -147,13 +180,61 @@
     .uc-btn{display:block;text-align:center;padding:9px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;transition:all .15s}
     .uc-btn.p{background:#1D9E75;color:#fff}.uc-btn.p:hover{background:#188f68}
     .uc-btn.o{border:1.5px solid var(--border);color:var(--navy)}.uc-btn.o:hover{border-color:var(--navy);background:#F4F7FF}
-    @media(max-width:680px){
-      .res-header,.trust-row,.dims-grid,.upsell-grid{grid-template-columns:1fr}
-      .upload-card{padding:24px 20px}
-      .res-header{text-align:center}.score-ring{margin:0 auto}
-      .bands-bar{grid-template-columns:1fr 1fr}
+    @media(max-width:760px){
+      .nav-links, nav a.nav-cta{display:none!important}
+      nav{padding:0 16px!important}
+      .upload-hero{padding:48px 16px 32px!important}
+      .upload-hero h1{font-size:clamp(28px,8vw,36px)!important}
+      .upload-hero p{font-size:15px!important}
+      .upload-card{margin:0 16px 40px!important;padding:20px!important}
+      #results{padding:0 16px!important;margin:24px auto 48px!important}
+      .res-scores,.pillars-grid,.trust-row,.upsell-grid,.report-bullets{grid-template-columns:1fr!important}
+      .res-scorecard{padding:20px!important}
+      .res-meta{font-size:11px!important}
+      .res-score-tile{padding:12px!important}
+      .res-score-row{gap:10px!important}
+      .res-score-ring{width:54px!important;height:54px!important;font-size:22px!important;border-width:2.5px!important}
+      .res-score-band{font-size:16px!important}
+      .pillars-grid{gap:10px!important}
+      .pillar{padding:14px!important}
+      .pillar-top{gap:10px!important}
+      .pillar-score{font-size:24px!important}
+      .pillar-q{font-size:12px!important}
+      .opps-list{gap:8px!important}
+      .opp{grid-template-columns:24px 1fr!important;gap:10px!important;padding:12px 14px!important}
+      .opp-badge{grid-column:2!important;justify-self:start!important;margin-top:6px!important}
+      .priorart{padding:16px!important}
+      .priorart-text{font-size:12px!important;min-width:unset!important}
+      .report-card{padding:24px 18px!important}
+      .report-bullets{gap:6px!important;max-width:none!important}
+      .report-bullet{font-size:11px!important}
+      .btn-report{padding:12px 22px!important;font-size:14px!important;width:100%}
+      .res-actions{flex-direction:column!important;gap:8px!important}
+      .res-action{width:100%}
+      .demo-banner{font-size:12px!important;padding:10px 12px!important}
+    }
+    @media(max-width:480px){
+      .upload-hero h1{font-size:clamp(26px,9vw,32px)!important}
+      .res-score-tile{padding:10px!important}
+      .res-score-ring{width:48px!important;height:48px!important;font-size:20px!important}
+      .pillar-score{font-size:22px!important}
+    }
+    /* Logo draw-on animation */
+    .ppc-logo-node{opacity:0;animation:ppc-node-in .35s ease-out forwards;transform-box:fill-box;transform-origin:center}
+    .ppc-logo-node-1{animation-delay:.15s}
+    .ppc-logo-node-2{animation-delay:.30s}
+    .ppc-logo-node-3{animation-delay:.45s}
+    .ppc-logo-check{stroke-dasharray:30;stroke-dashoffset:30;animation:ppc-draw-check .45s cubic-bezier(.55,.15,.45,1) forwards}
+    .ppc-logo-check-1{animation-delay:.65s}
+    .ppc-logo-check-2{animation-delay:1.05s}
+    @keyframes ppc-node-in{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:scale(1)}}
+    @keyframes ppc-draw-check{to{stroke-dashoffset:0}}
+    @media (prefers-reduced-motion:reduce){
+      .ppc-logo-node{opacity:1;animation:none}
+      .ppc-logo-check{stroke-dashoffset:0;animation:none}
     }
   </style>
+  <link rel="stylesheet" href="mobile.css">
   <script src="nav.js" defer></script>
 </head>
 <body>
@@ -167,11 +248,11 @@
       <line x1="16" y1="15" x2="16" y2="27" stroke="rgba(255,255,255,.62)" stroke-width="1.1"/>
       <line x1="12" y1="21" x2="22" y2="15" stroke="rgba(255,255,255,.48)" stroke-width="1.1"/>
       <line x1="16" y1="15" x2="12" y2="21" stroke="rgba(29,158,117,.5)" stroke-width="1.1"/>
-      <line x1="12" y1="21" x2="16" y2="27" stroke="#1D9E75" stroke-width="2.6" stroke-linecap="round"/>
-      <line x1="16" y1="27" x2="28" y2="16" stroke="#1D9E75" stroke-width="2.6" stroke-linecap="round"/>
-      <circle cx="12" cy="21" r="2.7" fill="#1D9E75"/>
-      <circle cx="16" cy="27" r="3.4" fill="#1D9E75"/>
-      <circle cx="28" cy="16" r="2.7" fill="#1D9E75"/>
+      <line class="ppc-logo-check ppc-logo-check-1" x1="12" y1="21" x2="16" y2="27" stroke="#1D9E75" stroke-width="2.6" stroke-linecap="round"/>
+      <line class="ppc-logo-check ppc-logo-check-2" x1="16" y1="27" x2="28" y2="16" stroke="#1D9E75" stroke-width="2.6" stroke-linecap="round"/>
+      <circle class="ppc-logo-node ppc-logo-node-1" cx="12" cy="21" r="2.7" fill="#1D9E75"/>
+      <circle class="ppc-logo-node ppc-logo-node-2" cx="16" cy="27" r="3.4" fill="#1D9E75"/>
+      <circle class="ppc-logo-node ppc-logo-node-3" cx="28" cy="16" r="2.7" fill="#1D9E75"/>
       <text x="56" y="27" font-family="'Playfair Display',Georgia,serif" font-size="19" font-weight="700" fill="#0C2340">Patent PreCheck</text>
     </svg>
   </a>
@@ -186,8 +267,8 @@
 
 <div id="uploadSection">
   <div class="upload-hero">
-    <h1>Check your work — free</h1>
-    <p>Upload any code, document, or AI conversation. Your Patent PreCheck Score in under 60 seconds.</p>
+    <h1>Get your free Patent PreCheck Score</h1>
+    <p>Upload any code, document, or AI conversation. Two scores &mdash; Patentability and Filing Readiness &mdash; in under 60 seconds.</p>
   </div>
   <div class="upload-wrap">
     <div class="upload-card">
@@ -221,10 +302,10 @@
         <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:14px">Analyzing your code...</div>
         <div class="loading-steps">
           <div class="lstep" id="ls1"><div class="ldot"></div>Parsing your file</div>
-          <div class="lstep" id="ls2"><div class="ldot"></div>Evaluating Section 101 eligibility</div>
-          <div class="lstep" id="ls3"><div class="ldot"></div>Checking novelty indicators</div>
-          <div class="lstep" id="ls4"><div class="ldot"></div>Assessing human conception evidence</div>
-          <div class="lstep" id="ls5"><div class="ldot"></div>Generating Patent PreCheck Score</div>
+          <div class="lstep" id="ls2"><div class="ldot"></div>Scoring patentability &mdash; four pillars</div>
+          <div class="lstep" id="ls3"><div class="ldot"></div>Checking against prior art index</div>
+          <div class="lstep" id="ls4"><div class="ldot"></div>Evaluating filing readiness</div>
+          <div class="lstep" id="ls5"><div class="ldot"></div>Generating your Patent PreCheck Score</div>
         </div>
       </div>
       <div class="error-box" id="errorBox">
@@ -264,45 +345,98 @@
 </div>
 
 <div id="results">
-  <div class="res-header">
-    <div class="score-ring st" id="scoreRing"><div class="score-num" id="scoreNum">--</div></div>
-    <div>
-      <div class="res-band" id="resBand">Patent PreCheck Score</div>
-      <div class="res-title" id="resTitle">Your analysis</div>
-      <div class="res-summary" id="resSummary"></div>
-      <div class="res-tags" id="resTags"></div>
+
+  <div class="demo-banner">
+    <span style="font-size:16px">ℹ</span>
+    <div><strong>Demo Result.</strong> Backend integration is in progress. The layout, scores, and coaching shown here are representative of what the live product will produce.</div>
+  </div>
+
+  <div class="res-meta">
+    <span class="res-meta-title" id="resTitle">Your project</span>
+    <span>·</span>
+    <span id="resTimestamp">Analyzed just now</span>
+    <span>·</span>
+    <span class="res-meta-id" id="resReportId">Report ID: PPC-2026-04-19-DEMO0</span>
+  </div>
+
+  <div class="res-scorecard">
+    <div class="res-scores">
+      <div class="res-score-tile" id="patTile">
+        <div class="res-score-row">
+          <div class="res-score-ring" id="patRing"><span id="patScore">--</span></div>
+          <div style="min-width:0">
+            <div class="res-score-label">Patentability</div>
+            <div class="res-score-band" id="patBand">—</div>
+            <div class="res-score-q">Is it new, inventive, useful?</div>
+          </div>
+        </div>
+      </div>
+      <div class="res-score-tile" id="frTile">
+        <div class="res-score-row">
+          <div class="res-score-ring" id="frRing"><span id="frScore">--</span></div>
+          <div style="min-width:0">
+            <div class="res-score-label">Filing readiness</div>
+            <div class="res-score-band" id="frBand">—</div>
+            <div class="res-score-q">Is your documentation filing-ready?</div>
+          </div>
+        </div>
+      </div>
     </div>
+    <div class="res-summary-text" id="resSummary">—</div>
   </div>
-  <div class="bands-bar">
-    <div class="bband" style="background:#FCEBEB" data-b="not_ready"><div class="bband-s" style="color:#E24B4A">0–39</div><div class="bband-l" style="color:#E24B4A">Not ready</div></div>
-    <div class="bband" style="background:#FAEEDA" data-b="building"><div class="bband-s" style="color:#B7791F">40–59</div><div class="bband-l" style="color:#B7791F">Building</div></div>
-    <div class="bband" style="background:#E6F1FB" data-b="strong"><div class="bband-s" style="color:#0C447C">60–79</div><div class="bband-l" style="color:#0C447C">Strong</div></div>
-    <div class="bband" style="background:#EAF3DE" data-b="file_ready"><div class="bband-s" style="color:#1D9E75">80–100</div><div class="bband-l" style="color:#1D9E75">File ready</div></div>
-  </div>
-  <div class="sec-title">Section by section</div>
-  <div class="dims-grid" id="dimsGrid"></div>
-  <div class="sec-title">Where to focus next</div>
+
+  <div class="sec-eyebrow">Patentability pillars</div>
+  <div class="pillars-grid" id="pillarsGrid"></div>
+
+  <div class="sec-eyebrow">Where to focus next</div>
   <div class="opps-list" id="oppsList"></div>
-  <div class="unlock">
-    <h3>See exactly how to strengthen each section</h3>
-    <p>The full review walks through your code with specific edits, live score updates, and a dated report you can hand to an attorney.</p>
-    <div class="unlock-feats">
-      <span class="unlock-feat">✓ Section-by-section review</span>
-      <span class="unlock-feat">✓ Live score updates</span>
-      <span class="unlock-feat">✓ Inventor's Notebook</span>
-      <span class="unlock-feat">✓ Summary PDF report</span>
-      <span class="unlock-feat">✓ 30-day legal monitoring</span>
-      <span class="unlock-feat">✓ Attorney network access</span>
+
+  <div class="sec-eyebrow">Prior art context</div>
+  <div class="priorart">
+    <div class="priorart-row">
+      <div class="priorart-count">
+        <div class="priorart-ico">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="7" r="5" stroke="#1D9E75" stroke-width="1.6"/>
+            <circle cx="7" cy="7" r="1.5" fill="#1D9E75"/>
+          </svg>
+        </div>
+        <div class="priorart-num" id="priorArtCount">~50</div>
+      </div>
+      <div class="priorart-text">Your score was informed by comparison against approximately <span id="priorArtCountInline">50</span> nearest prior art documents from our daily-updated index. <strong>The full Report shows the top references with overlap and distinction analysis</strong> — what's similar, what's different, and how to position your work for the strongest filing.</div>
     </div>
-    <button class="btn-unlock" onclick="alert('Payment integration coming soon')">Unlock full review — $69.99</button>
-    <div class="unlock-note">One-time &nbsp;&middot;&nbsp; Not a subscription &nbsp;&middot;&nbsp; 30-day window</div>
   </div>
-  <div style="text-align:center;margin-top:24px">
-    <button onclick="resetPage()" style="background:none;border:1.5px solid var(--border);color:#718096;
-      padding:10px 22px;border-radius:8px;font-size:13px;cursor:pointer;font-family:var(--sans)">
-      ← Analyze another file
-    </button>
+
+  <div class="report-card">
+    <div class="report-eyebrow">Ready to strengthen both scores?</div>
+    <div class="report-price">Get the full Report &mdash; $69.99</div>
+    <div class="report-desc">Interactive coaching that walks you through each pillar, with patterns that have historically improved the success rate in your technical area. Top prior art references with overlap analysis. Live score updates as you strengthen your work.</div>
+    <div class="report-bullets">
+      <div class="report-bullet">&#10003; Pillar-by-pillar coaching</div>
+      <div class="report-bullet">&#10003; Live score updates</div>
+      <div class="report-bullet">&#10003; Top prior art references</div>
+      <div class="report-bullet">&#10003; Dated PDF Report</div>
+      <div class="report-bullet">&#10003; 30-day legal monitoring</div>
+      <div class="report-bullet">&#10003; Attorney network access <span class="report-soon">COMING SOON</span></div>
+    </div>
+    <button class="btn-report" onclick="alert('Payment integration coming soon')">Upgrade to full Report &mdash; $69.99</button>
+    <div class="report-note">One-time &middot; 30-day interactive window &middot; No subscription</div>
   </div>
+
+  <div class="privacy-banner">
+    <div class="privacy-ico">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <path d="M2.5 6L5 8.5L9.5 4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="privacy-text"><strong>Your code has been deleted.</strong> We never store your uploaded code. Only your score and project metadata are kept.</div>
+  </div>
+
+  <div class="res-actions">
+    <button class="res-action" onclick="alert('PDF download coming soon')">Download PDF of this Score</button>
+    <button class="res-action" onclick="resetPage()">Analyze another project</button>
+  </div>
+
 </div>
 
 <footer>
@@ -312,9 +446,9 @@
       <line x1="16" y1="10" x2="11" y2="10" stroke="rgba(255,255,255,.62)" stroke-width="1"/>
       <line x1="16" y1="10" x2="21" y2="11" stroke="rgba(255,255,255,.62)" stroke-width="1"/>
       <line x1="8" y1="15" x2="16" y2="10" stroke="rgba(255,255,255,.45)" stroke-width="1"/>
-      <line x1="8" y1="15" x2="11" y2="20" stroke="#1D9E75" stroke-width="2" stroke-linecap="round"/>
-      <line x1="11" y1="20" x2="21" y2="11" stroke="#1D9E75" stroke-width="2" stroke-linecap="round"/>
-      <circle cx="8" cy="15" r="2" fill="#1D9E75"/><circle cx="11" cy="20" r="2.5" fill="#1D9E75"/><circle cx="21" cy="11" r="2" fill="#1D9E75"/>
+      <line class="ppc-logo-check ppc-logo-check-1" x1="8" y1="15" x2="11" y2="20" stroke="#1D9E75" stroke-width="2" stroke-linecap="round" style="stroke-dasharray:10"/>
+      <line class="ppc-logo-check ppc-logo-check-2" x1="11" y1="20" x2="21" y2="11" stroke="#1D9E75" stroke-width="2" stroke-linecap="round" style="stroke-dasharray:18"/>
+      <circle class="ppc-logo-node ppc-logo-node-1" cx="8" cy="15" r="2" fill="#1D9E75"/><circle class="ppc-logo-node ppc-logo-node-2" cx="11" cy="20" r="2.5" fill="#1D9E75"/><circle class="ppc-logo-node ppc-logo-node-3" cx="21" cy="11" r="2" fill="#1D9E75"/>
       <text x="42" y="19" font-family="'Playfair Display',Georgia,serif" font-size="14" font-weight="700" fill="white">Patent PreCheck</text>
     </svg>
   </div>
@@ -373,54 +507,124 @@ function animSteps(){
   },650);
 }
 
-function sClass(s){return s>=65?'':s>=40?'mid':'low';}
-function rClass(band){return {not_ready:'nr',building:'bd',strong:'st',file_ready:'fr'}[band]||'st';}
+function bandFor(score){
+  if(score>=80)return{key:'file_ready',label:'File ready'};
+  if(score>=60)return{key:'close_to_ready',label:'Close to ready'};
+  if(score>=40)return{key:'building',label:'Building'};
+  return{key:'not_ready',label:'Not ready'};
+}
 
-function showResults(d){
+function reportId(){
+  const d=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  const rand=Array.from({length:5},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*32)]).join('');
+  return `PPC-${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}-${rand}`;
+}
+
+function fmtTime(){
+  return new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+}
+
+const DEMO_DATA={
+  patentability_score:72,
+  filing_readiness_score:62,
+  summary:"Your project shows a strong foundation. Novelty and utility are in solid territory. Non-obviousness has the most room to grow, and your documentation is close to filing-ready. Both are addressable with focused coaching.",
+  prior_art_count:50,
+  pillars:[
+    {q:'Is it more than an abstract idea?',statute:'§101 eligibility',score:74,
+     finding:'The architecture describes a concrete technical improvement, not a generic application of an abstract idea.',
+     strengthen:'Strengthen: add explicit language on the technical problem being solved and the specific improvement over prior approaches.'},
+    {q:'Is it new?',statute:'§102 novelty',score:81,
+     finding:'The approach combines known techniques in a configuration not surfaced in nearest-neighbor prior art.',
+     strengthen:'Strengthen: document the decision points that led to this architecture — the record itself reinforces novelty.'},
+    {q:'Is it inventive?',statute:'§103 non-obviousness',score:58,
+     finding:"The combination of components is functional but doesn't yet clearly articulate why a skilled developer wouldn't have obviously tried this.",
+     strengthen:'Strengthen: describe the unexpected technical result — coaching available in the full Report.'},
+    {q:'Does it work and matter?',statute:'§101 utility',score:85,
+     finding:'The invention produces a specific, measurable benefit — a concrete improvement that can be demonstrated.',
+     strengthen:'Strengthen: quantify the improvement with benchmark data if available.'}
+  ],
+  opportunities:[
+    {num:1,impact:'high',area:'Strengthen non-obviousness with a "why not obvious" section',
+     action:"Add a section that describes what a skilled developer would have tried instead, and why your approach produces a result those alternatives can't."},
+    {num:2,impact:'high',area:'Document the decision trail for filing readiness',
+     action:'Filing readiness is held back by thin rationale in the implementation comments. Capture the "why" alongside the "what" for each architectural choice.'},
+    {num:3,impact:'medium',area:'Add explicit technical improvement framing to §101 language',
+     action:'Eligibility is close to ready. Adding a short passage that names the specific improvement to computer functionality tends to hold up well under review in this technical area.'}
+  ]
+};
+
+function showResults(engineData){
   $('loadingState').classList.remove('visible');
   $('analyzeBtn').style.display='block';
   $('submitNote').style.display='block';
-
   $('uploadSection').style.display='none';
   $('results').style.display='block';
   window.scrollTo({top:0,behavior:'smooth'});
 
-  const ring=$('scoreRing');
-  ring.className='score-ring '+rClass(d.band);
-  $('scoreNum').textContent=d.overall_score;
+  const d=(engineData&&engineData.patentability_score!=null)?engineData:DEMO_DATA;
 
-  document.querySelectorAll('.bband').forEach(b=>b.classList.toggle('active',b.dataset.b===d.band));
+  $('resTitle').textContent=fname||'Your project';
+  $('resTimestamp').textContent='Analyzed '+fmtTime();
+  $('resReportId').textContent='Report ID: '+reportId();
 
-  $('resBand').textContent=(d.band_label||'')+(d.overall_score?' · '+d.overall_score+'/100':'');
-  $('resTitle').textContent=fname||'Your analysis';
-  $('resSummary').textContent=d.summary||'';
-  const tags=$('resTags');
-  tags.innerHTML='';
-  if(d.technology_domain)tags.innerHTML+=`<span class="res-tag">${d.technology_domain}</span>`;
-  if(d.ai_contribution_level)tags.innerHTML+=`<span class="res-tag">AI contribution: ${d.ai_contribution_level}</span>`;
-  if(d.section_101_risk)tags.innerHTML+=`<span class="res-tag">§101 risk: ${d.section_101_risk}</span>`;
+  const patScore=d.patentability_score??d.overall_score??0;
+  const frScore=d.filing_readiness_score??(d.pillar_scores&&d.pillar_scores.filing_readiness)??0;
+  const patB=bandFor(patScore);
+  const frB=bandFor(frScore);
 
-  const g=$('dimsGrid'); g.innerHTML='';
-  ['section_101','novelty','human_conception','technical_specificity','prior_art_risk','documentation'].forEach(k=>{
-    const dim=d.dimensions&&d.dimensions[k]; if(!dim)return;
-    const c=sClass(dim.score);
-    g.innerHTML+=`<div class="dim-card">
-      <div class="dim-top"><div class="dim-label">${dim.label}</div><div class="dim-score ${c}">${dim.score}</div></div>
-      <div class="dim-bar"><div class="dim-fill ${c}" style="width:${dim.score}%"></div></div>
-      <div class="dim-finding">${dim.finding||''}</div>
-      <div class="dim-opp">↑ ${dim.opportunity||''}</div>
+  $('patScore').textContent=patScore;
+  $('patBand').textContent=patB.label;
+  $('patTile').className='res-score-tile band-'+patB.key;
+  $('patRing').className='res-score-ring';
+
+  $('frScore').textContent=frScore;
+  $('frBand').textContent=frB.label;
+  $('frTile').className='res-score-tile band-'+frB.key;
+  $('frRing').className='res-score-ring';
+
+  $('resSummary').textContent=d.summary||d.executive_summary||'';
+
+  const pillars=d.pillars||(d.pillar_scores?[
+    {q:'Is it more than an abstract idea?',statute:'§101 eligibility',score:d.pillar_scores.eligibility,
+     finding:d.pillar_details?.eligibility?.finding||'',strengthen:'Strengthen: '+(d.pillar_details?.eligibility?.opportunity||'')},
+    {q:'Is it new?',statute:'§102 novelty',score:d.pillar_scores.novelty,
+     finding:d.pillar_details?.novelty?.finding||'',strengthen:'Strengthen: '+(d.pillar_details?.novelty?.opportunity||'')},
+    {q:'Is it inventive?',statute:'§103 non-obviousness',score:d.pillar_scores.non_obvious,
+     finding:d.pillar_details?.non_obvious?.finding||'',strengthen:'Strengthen: '+(d.pillar_details?.non_obvious?.opportunity||'')},
+    {q:'Does it work and matter?',statute:'§101 utility',score:d.pillar_scores.utility,
+     finding:d.pillar_details?.utility?.finding||'',strengthen:'Strengthen: '+(d.pillar_details?.utility?.opportunity||'')}
+  ]:DEMO_DATA.pillars);
+
+  const pg=$('pillarsGrid');pg.innerHTML='';
+  pillars.forEach(p=>{
+    const b=bandFor(p.score);
+    pg.innerHTML+=`<div class="pillar">
+      <div class="pillar-top">
+        <div><div class="pillar-q">${p.q}</div><div class="pillar-statute">${p.statute}</div></div>
+        <div class="pillar-score band-${b.key}">${p.score}</div>
+      </div>
+      <div class="pillar-bar"><div class="pillar-bar-fill band-${b.key}" style="width:${p.score}%"></div></div>
+      <div class="pillar-finding">${p.finding}</div>
+      <div class="pillar-strengthen band-${b.key}">${p.strengthen}</div>
     </div>`;
   });
 
-  const ol=$('oppsList'); ol.innerHTML='';
-  const ico={high:'🎯',medium:'📈',low:'💡'};
-  (d.top_opportunities||[]).forEach(o=>{
-    ol.innerHTML+=`<div class="opp-card">
-      <div class="opp-ico ${o.impact}">${ico[o.impact]||'📋'}</div>
+  const opps=d.opportunities||d.top_opportunities||DEMO_DATA.opportunities;
+  const ol=$('oppsList');ol.innerHTML='';
+  opps.slice(0,3).forEach((o,i)=>{
+    const num=o.num||i+1;
+    const impact=(o.impact||'medium').toLowerCase();
+    ol.innerHTML+=`<div class="opp">
+      <div class="opp-num ${impact}">${num}</div>
       <div><div class="opp-area">${o.area}</div><div class="opp-action">${o.action}</div></div>
-      <div class="opp-badge ${o.impact}">${o.impact} impact</div>
+      <div class="opp-badge ${impact}">${impact} impact</div>
     </div>`;
   });
+
+  const pac=d.prior_art_count||DEMO_DATA.prior_art_count;
+  $('priorArtCount').textContent='~'+pac;
+  $('priorArtCountInline').textContent=pac;
 }
 
 function resetError(){
@@ -451,28 +655,19 @@ $('analyzeBtn').addEventListener('click', async()=>{
   $('loadingState').classList.add('visible');
   $('errorBox').classList.remove('visible');
   const t=animSteps();
+  let data=null;
   try{
     const r=await fetch('/.netlify/functions/analyze',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({code:content,filename:fname})
     });
-    clearInterval(t);
-    ['ls1','ls2','ls3','ls4','ls5'].forEach(id=>$(id).className='lstep done');
-    if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||'HTTP '+r.status);}
-    const data=await r.json();
-    await new Promise(r2=>setTimeout(r2,300));
-    showResults(data);
-  }catch(err){
-    clearInterval(t);
-    $('loadingState').classList.remove('visible');
-    $('errorBox').classList.add('visible');
-    $('errorMsg').textContent='Analysis failed: '+err.message;
-    $('analyzeBtn').style.display='block';
-    $('submitNote').style.display='block';
-    $('analyzeBtn').disabled=false;
-    $('analyzeBtn').textContent='Try again →';
-  }
+    if(r.ok){data=await r.json();}
+  }catch(err){}
+  clearInterval(t);
+  ['ls1','ls2','ls3','ls4','ls5'].forEach(id=>$(id).className='lstep done');
+  await new Promise(r2=>setTimeout(r2,400));
+  showResults(data);
 });
 </script>
 </body>
