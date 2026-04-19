@@ -1,0 +1,22 @@
+{
+  "name": "patentprecheck",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Patent PreCheck — AI patentability platform for developers",
+  "author": "Kevin J. Berk",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "prettier": "^3.3.0"
+  },
+  "scripts": {
+    "lint": "eslint backend/",
+    "format": "prettier --write backend/"
+  }
+}

@@ -1,0 +1,2492 @@
+PATENT PRECHECK — SOURCE CODE DEPOSIT COPY
+==========================================
+Copyright Registration Deposit
+Author: Kevin J. Berk
+Work: Patent PreCheck — Chrome Extension Source Code, AI Patentability Algorithm, and Supporting Documentation
+Year of Completion: 2026
+Date Prepared: April 14, 2026
+
+This document contains the original source code of the Patent PreCheck Chrome extension,
+including the real-time patent tracking system, AI Patentability Algorithm implementation,
+copyright filing wizard, and supporting dashboard scripts.
+
+All code is original work authored by Kevin J. Berk. AI tools were used as assistants only.
+The selection, arrangement, creative expression, and all inventive contributions are the
+original work of the author.
+
+==========================================
+
+
+============================================================
+FILE: content/content.js
+DESCRIPTION: MAIN CONTENT SCRIPT — Real-time tracking panel
+LINES: 561
+============================================================
+
+(function() {
+'use strict';
+if (window.__ppcLoaded) return;
+window.__ppcLoaded = true;
+
+// ── Tool detection ─────────────────────────────────────────────────────────
+function detectToolName() {
+  const h = location.href;
+  if (h.includes('claude.ai'))         return 'Claude';
+  if (h.includes('chatgpt.com') || h.includes('chat.openai.com')) return 'ChatGPT';
+  if (h.includes('gemini.google.com')) return 'Gemini';
+  if (h.includes('perplexity.ai'))     return 'Perplexity';
+  if (h.includes('grok.x.ai'))         return 'Grok';
+  if (h.includes('copilot.microsoft')) return 'Copilot';
+  return 'AI Tool';
+}
+const SELECTORS = {
+  'Claude':     { human:['[data-testid="human-turn"]','.font-user-message'], ai:['[data-testid="ai-turn"]','.font-claude-message','div.prose'] },
+  'ChatGPT':    { human:['[data-message-author-role="user"]'],               ai:['[data-message-author-role="assistant"]'] },
+  'Gemini':     { human:['.query-text','.user-query-bubble'],                ai:['.response-content','.model-response-text'] },
+  'Perplexity': { human:['[class*="userMessage"]'],                          ai:['[class*="answerMessage"]','.prose'] },
+  'Grok':       { human:['[data-testid="userMessage"]'],                     ai:['[data-testid="botMessage"]'] },
+  'Copilot':    { human:['[class*="userMessage"]'],                          ai:['[class*="botMessage"]'] },
+};
+
+// ── State ──────────────────────────────────────────────────────────────────
+let toolName    = detectToolName();
+let sels        = SELECTORS[toolName] || { human:[], ai:[] };
+let turns       = [], journal = [], eventLog = [];
+let score       = { overall:0, conception:0, eligibility:0, documentation:10 };
+let seenKeys    = new Set();
+let activeCheck = null;
+let panelOpen   = true;
+let userTyping  = false;   // ← KEY: prevents panel rebuild while user types
+let savedPos    = null;    // persisted drag position {right, bottom}
+let lastCheckAt = 0, checksSession = 0;
+const MAX_CHECKS = 8, MIN_GAP = 5 * 60 * 1000;
+
+// ── Scoring ────────────────────────────────────────────────────────────────
+const SIG_C = [/key insight/i,/i realized/i,/i figured out/i,/the mechanism/i,/my approach/i,/i measured/i,/i tested/i,/unlike existing/i,/specifically because/i,/from profiling/i,/i discovered/i,/what makes this different/i,/my idea/i,/i invented/i,/i designed/i];
+const SIG_D = [/\d+\s*(ms|seconds?|percent|%|kb|mb|hz)/i,/production\s+data/i,/our\s+system/i,/we\s+measured/i,/benchmark/i,/threshold/i,/latency/i];
+const SIG_W = [/let'?s use/i,/we should use/i,/just use/i,/can we use/i,/how do i/i];
+
+function scoreTurn(t) {
+  let s = 30;
+  s += Math.min(SIG_C.filter(r=>r.test(t)).length*15,35);
+  s += Math.min(SIG_D.filter(r=>r.test(t)).length*10,25);
+  if(t.length>200)s+=5; if(t.length>600)s+=5;
+  s -= SIG_W.filter(r=>r.test(t)).length*10;
+  if(t.trim().endsWith('?')&&t.split(' ').length<12)s-=15;
+  return Math.max(5,Math.min(100,Math.round(s)));
+}
+function isConception(t){return SIG_C.filter(r=>r.test(t)).length>=2||(SIG_C.some(r=>r.test(t))&&SIG_D.some(r=>r.test(t)));}
+
+function recompute() {
+  const h=turns.filter(t=>t.author==='human');
+  if(!h.length){updateNumbers();return;}
+  const sc=h.map(t=>t.score);
+  const top3=[...sc].sort((a,b)=>b-a).slice(0,3);
+  score.conception=Math.round(top3.reduce((a,b)=>a+b,0)/top3.length);
+  score.documentation=Math.min(100,10+journal.length*14);
+  score.eligibility=Math.min(100,Math.round(40+(sc.reduce((a,b)=>a+b,0)/sc.length)*0.3+(h.length/Math.max(turns.length,1))*15));
+  score.overall=Math.round(score.conception*0.5+score.eligibility*0.35+score.documentation*0.15);
+  chrome.storage.local.set({ppc_score:score});
+  updateFab();          // always update FAB badge
+  if(!userTyping) {
+    if(panelOpen) renderFull();   // full re-render if panel is open
+    else updateNumbers();         // lightweight update of numeric elements only
+  }
+}
+
+// ── Capture ────────────────────────────────────────────────────────────────
+function captureEl(el,author) {
+  const text=(el.innerText||el.textContent||'').trim();
+  if(text.length<12)return;
+  const key=author+':'+text.slice(0,100);
+  if(seenKeys.has(key))return;
+  seenKeys.add(key);
+  const turn={id:`t-${Date.now()}`,author,text:text.slice(0,6000),timestamp:Date.now(),tool:toolName,score:author==='human'?scoreTurn(text):0};
+  turns.push(turn);
+  if(author==='human'){
+    addLog(`Your message (strength ${turn.score}/100)`,'#1D9E75');
+    if(isConception(text)&&canFire())setTimeout(()=>fireCheck('conception'),1200);
+    else if(turn.score>=65&&canFire()&&Math.random()<0.4)setTimeout(()=>fireCheck('strong'),1500);
+  } else {
+    addLog(`${toolName} response captured`,'#9ca3af');
+    const num=text.match(/\b(\d+(?:\.\d+)?)\s*(?:ms|seconds?|percent|%|threshold)\b/i);
+    if(num&&canFire())setTimeout(()=>fireCheck('param',num[1]),1200);
+  }
+  const aiC=turns.filter(t=>t.author==='ai').length;
+  if(turns.length>=6&&aiC/turns.length>0.65&&canFire()&&Math.random()<0.4)setTimeout(()=>fireCheck('ratio'),2000);
+  recompute();
+}
+function scanSels(list,author){list.forEach(s=>{try{document.querySelectorAll(s).forEach(el=>captureEl(el,author));}catch(e){}});}
+function scanClaude(){
+  if(toolName!=='Claude')return;
+  document.querySelectorAll('div[class*="grid"]>div,main div[class*="flex"]>div').forEach(div=>{
+    const text=(div.innerText||'').trim();
+    if(text.length<15||text.length>10000)return;
+    const key='cl:'+text.slice(0,80);
+    if(seenKeys.has(key))return;
+    const cls=div.className||'';
+    const isU=cls.includes('user')||cls.includes('human')||!!div.querySelector('[class*="user"]');
+    const isA=cls.includes('assistant')||cls.includes('claude')||cls.includes('prose')||!!div.querySelector('.prose');
+    if(isU&&!isA)captureEl(div,'human');
+    else if(isA&&!isU)captureEl(div,'ai');
+  });
+}
+function scan(){scanSels(sels.human,'human');scanSels(sels.ai,'ai');scanClaude();watchInput();}
+
+// Watch real-time typing in the AI tool's input box
+function watchInput(){
+  document.querySelectorAll('.ProseMirror,[contenteditable="true"],textarea,#prompt-textarea').forEach(inp=>{
+    if(inp.__ppcW)return; inp.__ppcW=true;
+    inp.addEventListener('input',()=>{
+      const t=(inp.innerText||inp.value||'').trim();
+      if(t.length<5){hideTyping();return;}
+      const s=scoreTurn(t), col=s>=70?'#1D9E75':s>=45?'#EF9F27':'#E24B4A';
+      const conc=isConception(t);
+      const area=document.getElementById('ppc-typing-area');
+      if(!area)return;
+      area.style.display='block';
+      area.innerHTML=`<div style="font-size:9px;font-weight:700;color:#9ca3af;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">AS YOU TYPE — <span style="color:${col}">${s}/100</span></div>
+        <div style="height:4px;background:#f0f0f0;border-radius:2px;overflow:hidden;margin-bottom:${conc?'5px':'0'}"><div style="height:100%;width:${s}%;background:${col};border-radius:2px;transition:width .3s"></div></div>
+        ${conc?`<div style="font-size:10px;color:#0C447C;background:#E6F1FB;padding:3px 8px;border-radius:5px;margin-top:4px">Your idea moment — we'll prompt you when you send</div>`:''}`;
+    });
+  });
+}
+function hideTyping(){const a=document.getElementById('ppc-typing-area');if(a)a.style.display='none';}
+
+// ── Checks ─────────────────────────────────────────────────────────────────
+function canFire(){return checksSession<MAX_CHECKS&&Date.now()-lastCheckAt>MIN_GAP&&!activeCheck;}
+
+const CDEFS={
+  conception:{scoreGain:15,category:1,band:'#E24B4A',label:'YOUR IDEA',title:'You just had an original idea',intro:'You said something that sounds like your own original thinking — not something the AI came up with.',question:'Describe your idea in your own words — not the AI\'s language, yours. What makes it different or new?',why:'Saving this now creates a dated record that this idea came from you — before anyone else.',ph:'e.g. The key mechanism is that inter-arrival variance captures dispersion that moving averages discard. This lets you distinguish burst traffic from high-load — prior approaches cannot do this...',guidance:'Patent law says the idea must clearly be yours. Writing it down now, in your own words, is how you show that.'},
+  param:v=>({scoreGain:10,category:3,band:'#EF9F27',label:'SUGGESTED',title:`AI suggested "${v}" — did that come from your data?`,intro:'The AI suggested a specific number. If that came from your own data or experience, say so briefly.',question:'Did this number come from your own experience or data? Even a short answer helps show it was your call.',why:'If this number came from your own work or data, saying so shows it was yours — not just the AI suggestion.',ph:`e.g. I confirmed this from 90 days of production traffic — the 90th percentile matched that value...`,guidance:'If a number or approach came from your own experience or data, that matters for establishing it as yours.'}),
+  strong:{scoreGain:8,category:1,band:'#378ADD',label:'SAVE THIS',title:'This looks worth saving',intro:'That message had something specific and original in it. Worth saving so it is on the record.',question:'Is there anything else from your own experience the AI wouldn\'t know?',why:'Details the AI couldn\'t know are some of the strongest patent evidence available.',ph:'e.g. My insight draws from our March incident where burst buildup went undetected 40 minutes before failure...',guidance:'Showing that you spotted the problem or approach before the AI did is strong evidence the idea is yours.'},
+  ratio:{scoreGain:12,category:3,band:'#EF9F27',label:'SUGGESTED',title:'Most of this is from the AI',intro:'A lot of this conversation is the AI talking. It helps to write down what direction you were giving it.',question:'What were you telling the AI to do, and why? What did you know that shaped the direction you gave it?',why:'Showing that you were in charge — that you gave the AI specific direction — is what makes the idea protectable.',ph:'e.g. Every AI suggestion was filtered through requirements I set: variance-based detection (my insight)...',guidance:'There is a difference between saying make me something and giving specific direction. Write down what made yours specific.'},
+  wrap:{scoreGain:12,category:1,band:'#0C447C',label:'BEFORE YOU GO',title:'Before you go — what was your idea?',intro:'Before you close this tab, take 2 minutes to write down what the original idea was — in your own words.',question:'What was your original idea here? What came from you — not from the AI? Write it in plain language.',why:'What you write here, right now, with todays date attached, is your record of what you came up with and when.',ph:'e.g. The queue-depth weighting factor was entirely mine — no AI suggested it. I saw the failure mode in our March incident logs...',guidance:'Write down what came from you independently — not what the AI produced, but what you brought to it.'},
+};
+
+function fireCheck(type,val){
+  if(!canFire())return;
+  const def=typeof CDEFS[type]==='function'?CDEFS[type](val):CDEFS[type];
+  activeCheck={...def,type};
+  lastCheckAt=Date.now(); checksSession++;
+  addLog(`Prompt ready: ${def.title}`,def.band);
+  // Don't force panel open — show badge on FAB, let user open when ready
+  updateFab();
+  if(panelOpen) renderFull();
+}
+
+// ── Log ────────────────────────────────────────────────────────────────────
+function addLog(msg,color='#9ca3af'){
+  const t=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  eventLog.unshift({msg,color,t});
+  if(eventLog.length>8)eventLog.pop();
+  const el=document.getElementById('ppc-log');
+  if(el)el.innerHTML=eventLog.map(e=>`<div style="display:flex;gap:5px;padding:4px 0;border-bottom:0.5px solid #f5f5f5;font-size:10px"><span style="color:${e.color};flex-shrink:0">●</span><span style="flex:1;color:#6b7280;line-height:1.3">${e.msg}</span><span style="color:#ccc;flex-shrink:0">${e.t}</span></div>`).join('');
+}
+
+// ── updateNumbers — safe, never touches the check form ─────────────────────
+function updateNumbers(){
+  const s=score.overall,col=scol(s);
+  const setT=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  const setS=(id,v)=>{const e=document.getElementById(id);if(e)e.style[Object.keys(v)[0]]=Object.values(v)[0];};
+
+  setT('ppc-score-num', s||'–');
+  setT('ppc-score-band', sband(s));
+  setS('ppc-score-band',{color:col});
+  setT('ppc-score-note', s>0?'Powered by the AI Patentability Algorithm':'Start your conversation — your score will appear here');
+
+  ['c','e','d'].forEach((k,i)=>{
+    const v=[score.conception,score.eligibility,score.documentation][i];
+    setT(`ppc-val-${k}`,v||'–');
+    const bar=document.getElementById(`ppc-bar-${k}`);
+    if(bar)bar.style.width=(v||0)+'%';
+  });
+
+  const h=turns.filter(t=>t.author==='human').length;
+  const a=turns.filter(t=>t.author==='ai').length;
+  setT('ppc-stat-total',turns.length);
+  setT('ppc-stat-human',h);
+  setT('ppc-stat-ai',a);
+  setT('ppc-stat-saved',journal.length);
+
+  // Update ring
+  const ring=document.getElementById('ppc-ring');
+  if(ring){
+    const circ=188,offset=s>0?circ-(s/100)*circ:circ;
+    ring.style.strokeDashoffset=offset;
+    ring.style.stroke=col;
+    const bg=document.getElementById('ppc-ring-bg');
+    if(bg)bg.setAttribute('fill',sbg(s));
+  }
+  const num=document.getElementById('ppc-score-num');
+  if(num)num.setAttribute('fill',col);
+
+  addLog('');// refresh log display
+}
+
+// ── Colours ────────────────────────────────────────────────────────────────
+function scol(s){return s>=80?'#1D9E75':s>=60?'#378ADD':s>=40?'#EF9F27':s>0?'#E24B4A':'#d1d5db';}
+function sband(s){return s>=80?'File-ready':s>=60?'Strong position':s>=40?'Building strength':s>0?'Not yet ready':s===0?'Start your conversation':'';}
+function sbg(s){return s>=80?'#EAF3DE':s>=60?'#E6F1FB':s>=40?'#FAEEDA':s>0?'#FCEBEB':'#f5f5f5';}
+
+// ── Full render — only called when no user typing ─────────────────────────
+function renderFull(){
+  const root=document.getElementById('ppc-panel-root');
+  if(!root||!panelOpen)return;
+  const s=score.overall,col=scol(s),band=sband(s);
+  const human=turns.filter(t=>t.author==='human');
+  const ai=turns.filter(t=>t.author==='ai');
+  const circ=188,offset=s>0?circ-(s/100)*circ:circ;
+
+  root.innerHTML=`
+<div style="width:304px;background:#fff;border-radius:16px;border:0.5px solid #e5e7eb;box-shadow:0 4px 24px rgba(0,0,0,.10);display:flex;flex-direction:column;max-height:82vh;overflow-y:auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+
+  <!-- Sticky header — drag handle -->
+  <div id="ppc-drag-handle" style="position:sticky;top:0;z-index:10;padding:12px 14px 9px;border-bottom:0.5px solid #f0f0f0;background:#fff;cursor:grab;user-select:none">
+    <div style="display:flex;align-items:center;gap:7px;margin-bottom:2px">
+      <svg width="17" height="17" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8" fill="#0C447C"/><path d="M5.5 9l2.5 2.5 5-5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span style="font-size:14px;font-weight:700;color:#0C447C;flex:1">Patent PreCheck</span>
+      <span style="font-size:10px;background:#E6F1FB;color:#185FA5;padding:2px 8px;border-radius:20px;font-weight:500">${toolName}</span>
+      <button id="ppc-close" style="background:none;border:none;font-size:22px;color:#ccc;cursor:pointer;line-height:1;padding:0 3px;flex-shrink:0">×</button>
+    </div>
+    <div style="font-size:10px;color:#9ca3af">Tracking what came from you vs the AI · <span style="opacity:.6">drag to move</span></div>
+  </div>
+
+  <!-- Active check — at the top, full form -->
+  ${activeCheck?`
+  <div id="ppc-check-area" style="padding:14px;border-bottom:0.5px solid #f0f0f0;background:#fffbeb">
+    <div style="display:inline-block;font-size:9px;font-weight:700;color:${activeCheck.band};background:${activeCheck.band}18;padding:3px 10px;border-radius:20px;margin-bottom:8px;letter-spacing:.06em">${activeCheck.label}</div>
+    <div style="font-size:14px;font-weight:700;color:#111827;margin-bottom:5px;line-height:1.3">${activeCheck.title}</div>
+    <div style="font-size:11px;color:#6b7280;background:#fff;border-radius:8px;padding:7px 9px;margin-bottom:7px;line-height:1.5;border:0.5px solid #f0f0f0">${activeCheck.intro}</div>
+    <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:5px;line-height:1.5">${activeCheck.question}</div>
+    <div style="font-size:10px;color:#185FA5;background:#E6F1FB;padding:5px 9px;border-radius:7px;margin-bottom:7px;line-height:1.4">${activeCheck.why}</div>
+    <textarea id="ppc-ta" rows="4" placeholder="${activeCheck.ph}" style="width:100%;border:1.5px solid #e5e7eb;border-radius:10px;padding:10px 11px;font-size:11px;resize:vertical;min-height:80px;line-height:1.6;color:#111;background:#fff;font-family:inherit;display:block;box-sizing:border-box"></textarea>
+    <div id="ppc-chars" style="font-size:10px;color:#9ca3af;margin:5px 0 6px">Write at least 40 characters — more detail = stronger legal evidence</div>
+    <div style="font-size:10px;color:#6b7280;padding:5px 9px;background:#fff;border-radius:7px;border-left:3px solid ${activeCheck.band};margin-bottom:10px;line-height:1.45">${activeCheck.guidance}</div>
+    <div style="display:flex;gap:8px">
+      <button id="ppc-save" style="flex:1;background:#0C447C;color:#fff;border:none;border-radius:10px;padding:11px;font-size:12px;font-weight:600;cursor:pointer;opacity:.35" disabled>Save as legal evidence (+${activeCheck.scoreGain} pts)</button>
+      <button id="ppc-skip" style="background:#fff;border:1.5px solid #e5e7eb;border-radius:10px;padding:11px 14px;font-size:11px;color:#9ca3af;cursor:pointer">Skip</button>
+    </div>
+  </div>`:''}
+
+  <!-- Score section -->
+  <div style="padding:14px 14px 12px;border-bottom:0.5px solid #f0f0f0;text-align:center">
+    <div style="font-size:9px;font-weight:600;color:#9ca3af;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">Your Patent PreCheck Score</div>
+    <svg width="88" height="88" viewBox="0 0 96 96" style="display:block;margin:0 auto 7px">
+      <circle id="ppc-ring-bg" cx="48" cy="48" r="38" fill="${sbg(s)}" stroke="none"/>
+      <circle cx="48" cy="48" r="38" fill="none" stroke="#f0f0f0" stroke-width="7"/>
+      <circle id="ppc-ring" cx="48" cy="48" r="38" fill="none" stroke="${col}" stroke-width="7"
+        stroke-dasharray="${circ}" stroke-dashoffset="${offset}" stroke-linecap="round"
+        transform="rotate(-90 48 48)" style="transition:stroke-dashoffset .8s,stroke .4s"/>
+      <text id="ppc-score-num" x="48" y="55" text-anchor="middle" font-size="${s>9?'26':'16'}" font-weight="700" fill="${col}" font-family="-apple-system,sans-serif">${s>0?s:'–'}</text>
+    </svg>
+    <div id="ppc-score-band" style="font-size:12px;font-weight:700;color:${col};margin-bottom:2px">${band}</div>
+    <div id="ppc-score-note" style="font-size:9px;color:#ccc;margin-bottom:12px">${s>0?'Powered by the AI Patentability Algorithm':'Start your conversation — your score will appear here'}</div>
+
+    <!-- 4-band scale -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:12px">
+      ${[['0–39','Not yet ready','#FCEBEB','#E24B4A'],['40–59','Building','#FAEEDA','#EF9F27'],['60–79','Strong','#E6F1FB','#378ADD'],['80–100','File-ready','#EAF3DE','#1D9E75']].map(([r,l,bg,tc])=>`<div style="background:${bg};border-radius:7px;padding:5px 2px;text-align:center"><div style="font-size:10px;font-weight:700;color:${tc}">${r}</div><div style="font-size:8px;color:${tc};margin-top:1px">${l}</div></div>`).join('')}
+    </div>
+
+    <!-- 3 metrics -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px">
+      ${[['How much came from you',score.conception,'c','#0C447C'],['Can it be patented?',score.eligibility,'e','#378ADD'],['How well documented',score.documentation,'d','#1D9E75']].map(([label,val,k,c])=>`
+      <div style="background:#f9fafb;border-radius:9px;padding:8px 4px;text-align:center">
+        <div id="ppc-val-${k}" style="font-size:17px;font-weight:700;color:${c};line-height:1">${val||'–'}</div>
+        <div style="height:3px;background:#f0f0f0;border-radius:2px;overflow:hidden;margin:4px 0"><div id="ppc-bar-${k}" style="height:100%;width:${val||0}%;background:${c};border-radius:2px;transition:width .6s"></div></div>
+        <div style="font-size:8px;color:#9ca3af;line-height:1.3">${label}</div>
+      </div>`).join('')}
+    </div>
+  </div>
+
+  <!-- Captured stats -->
+  <div style="padding:10px 14px;border-bottom:0.5px solid #f0f0f0">
+    <div style="font-size:9px;font-weight:700;color:#374151;letter-spacing:.05em;margin-bottom:7px">WHAT WE'VE CAPTURED</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px">
+      ${[['Total',turns.length,'ppc-stat-total','#374151'],['Yours',human.length,'ppc-stat-human','#1D9E75'],[toolName.slice(0,5),ai.length,'ppc-stat-ai','#9ca3af'],['Saved',journal.length,'ppc-stat-saved','#EF9F27']].map(([label,n,id,c])=>`
+      <div style="background:#f9fafb;border-radius:9px;padding:7px 3px;text-align:center">
+        <div id="${id}" style="font-size:18px;font-weight:700;color:${c};line-height:1">${n}</div>
+        <div style="font-size:8px;color:#9ca3af;margin-top:2px">${label}</div>
+      </div>`).join('')}
+    </div>
+  </div>
+
+  <!-- Real-time typing feedback -->
+  <div id="ppc-typing-area" style="display:none;padding:8px 14px;border-bottom:0.5px solid #f0f0f0;background:#f8fff8"></div>
+
+  <!-- Empty state -->
+  ${turns.length===0?`<div style="padding:14px;text-align:center;background:#fafafa">
+    <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:5px">Listening to your conversation</div>
+    <div style="font-size:11px;color:#9ca3af;line-height:1.65">As you chat with ${toolName}, Patent PreCheck captures your messages, tracks what came from you versus the AI, and scores how protectable your idea is.</div>
+  </div>`:''}
+
+  <!-- Action buttons -->
+  <div style="padding:9px 12px;border-bottom:0.5px solid #f0f0f0;display:flex;gap:7px">
+    <button id="ppc-btn-d" style="flex:1;border:1.5px solid #e5e7eb;border-radius:9px;background:#fff;padding:8px 4px;font-size:10px;font-weight:600;color:#374151;cursor:pointer;line-height:1.3">Log a<br>decision</button>
+    <button id="ppc-btn-c" style="flex:1;border:1.5px solid #e5e7eb;border-radius:9px;background:#fff;padding:8px 4px;font-size:10px;font-weight:600;color:#374151;cursor:pointer;line-height:1.3">Log an<br>idea</button>
+    <button id="ppc-btn-w" style="flex:1;border:1.5px solid #0C447C;border-radius:9px;background:#E6F1FB;padding:8px 4px;font-size:10px;font-weight:600;color:#0C447C;cursor:pointer;line-height:1.3">Before<br>you go</button>
+  </div>
+
+  <!-- Event log -->
+  <div id="ppc-log" style="padding:6px 14px;max-height:72px;overflow-y:auto;background:#fafafa"></div>
+
+  <div style="padding:6px 14px;font-size:9px;color:#d1d5db;text-align:center">Patent PreCheck · Powered by the AI Patentability Algorithm · <span id='ppc-rescan' style='cursor:pointer;text-decoration:underline;opacity:.7' onclick='(function(){window.__ppcRescan&&window.__ppcRescan();})()'>rescan</span></div>
+</div>`;
+
+  wireEvents();
+  addLog('');
+  watchInput();
+}
+
+// ── Wire events — called after every full render ───────────────────────────
+function wireEvents(){
+  const on=(id,fn)=>{const el=document.getElementById(id);if(el)el.addEventListener('click',fn);};
+  on('ppc-btn-dash', ()=>{ chrome.runtime.sendMessage({type:'OPEN_DASHBOARD'}); });
+
+  on('ppc-close',()=>{
+    const p=document.getElementById('ppc-panel-root');
+    if(p)p.style.display='none';
+    panelOpen=false;
+    chrome.storage.local.set({ppc_panel_closed:true});
+    updateFab(); // show badge so user knows something is waiting
+  });
+  on('ppc-btn-d',()=>fireCheck('strong'));
+  on('ppc-btn-c',()=>fireCheck('conception'));
+  on('ppc-btn-w',()=>fireCheck('wrap'));
+  on('ppc-skip', ()=>{ activeCheck=null; userTyping=false; renderFull(); });
+
+  const ta  = document.getElementById('ppc-ta');
+  const btn = document.getElementById('ppc-save');
+  if(ta && btn){
+    // Mark user as typing — prevents panel rebuild from destroying their input
+    ta.addEventListener('focus', ()=>{ userTyping=true; });
+    ta.addEventListener('blur',  ()=>{ userTyping=false; });
+    ta.addEventListener('input', ()=>{
+      const ok = ta.value.trim().length >= 40;
+      btn.disabled   = !ok;
+      btn.style.opacity = ok ? '1' : '0.35';
+      const cc = document.getElementById('ppc-chars');
+      if(cc){
+        cc.textContent = ok
+          ? 'Good — enough detail to be useful legal evidence ✓'
+          : `${40-ta.value.trim().length} more characters recommended`;
+        cc.style.color = ok ? '#1D9E75' : '#9ca3af';
+      }
+    });
+    on('ppc-save', ()=>{
+      const answer = ta ? ta.value.trim() : '';
+      if(answer.length < 40 || !activeCheck) return;
+      journal.push({
+        id:`j-${Date.now()}`, timestamp:Date.now(),
+        category:activeCheck.category, trigger:activeCheck.type,
+        answer, scoreGain:activeCheck.scoreGain, tool:toolName, url:location.href
+      });
+      addLog(`Evidence saved · +${activeCheck.scoreGain} pts · ${journal.length} total`,'#1D9E75');
+      chrome.storage.local.set({ppc_journal:journal});
+      activeCheck = null;
+      userTyping  = false;
+      recompute();
+    });
+  }
+}
+
+
+// ── FAB badge — shown when panel is closed but there's something to see ──────
+function updateFab(){
+  const fab = document.getElementById('ppc-fab');
+  if(!fab) return;
+  const s = score.overall;
+  const hasCheck = !!activeCheck;
+  const scoreStr = s > 0 ? s : '';
+
+  // Update score display on FAB
+  const scoreEl = fab.querySelector('.ppc-fab-score');
+  if(scoreEl) scoreEl.textContent = scoreStr;
+
+  // Badge: red dot when panel closed AND (check pending OR score changed)
+  let badge = fab.querySelector('.ppc-fab-badge');
+  if(!panelOpen && (hasCheck || s > 0)){
+    if(!badge){
+      badge = document.createElement('div');
+      badge.className = 'ppc-fab-badge';
+      badge.style.cssText = 'position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:#E24B4A;border:2px solid #fff';
+      fab.style.position = 'relative';
+      fab.appendChild(badge);
+    }
+    badge.style.background = hasCheck ? '#E24B4A' : '#1D9E75';
+  } else if(badge){
+    badge.remove();
+  }
+}
+
+// ── Inject shell ───────────────────────────────────────────────────────────
+// ── Inject shell — bottom-right by default, draggable by header ────────────
+function inject(){
+  if(document.getElementById('ppc-root'))return;
+
+  const root=document.createElement('div');
+  root.id='ppc-root';
+  const iR=(savedPos&&savedPos.right!=null)?savedPos.right:20;
+  const iB=(savedPos&&savedPos.bottom!=null)?savedPos.bottom:20;
+  root.style.cssText=`position:fixed;bottom:${iB}px;right:${iR}px;z-index:2147483647;display:flex;flex-direction:column;align-items:flex-end;gap:10px`;
+
+  const pr=document.createElement('div');
+  pr.id='ppc-panel-root';
+  root.appendChild(pr);
+
+  const fab=document.createElement('button');
+  fab.id='ppc-fab';
+  fab.title='Patent PreCheck — click to open';
+  fab.style.cssText='width:52px;height:52px;border-radius:50%;background:#0C447C;border:none;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 3px 14px rgba(12,68,124,.35);gap:2px;flex-shrink:0;transition:transform .15s';
+  fab.innerHTML=`<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="#fff" stroke-width="1.5"/><path d="M6.5 10l2.5 2.5 5.5-5.5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="ppc-fab-score" style="font-size:10px;color:#fff;font-weight:700;line-height:1"></span>`;
+  fab.addEventListener('mouseenter',()=>fab.style.transform='scale(1.07)');
+  fab.addEventListener('mouseleave',()=>fab.style.transform='scale(1)');
+  fab.addEventListener('click',()=>{
+    const p=document.getElementById('ppc-panel-root');
+    if(!p)return;
+    const showing=p.style.display!=='none'&&p.innerHTML!=='';
+    p.style.display=showing?'none':'block';
+    panelOpen=!showing;
+    if(!showing){
+      chrome.storage.local.set({ppc_panel_closed:false});
+      renderFull();           // always re-render with latest scores on open
+      updateNumbers();        // also force-update any numeric elements
+    } else {
+      chrome.storage.local.set({ppc_panel_closed:true});
+    }
+    updateFab();
+  });
+  root.appendChild(fab);
+  document.body.appendChild(root);
+  makeDraggable(root);
+  renderFull();
+  addLog(`Patent PreCheck active · monitoring ${toolName}`,'#0C447C');
+}
+
+function makeDraggable(root){
+  let dragging=false,startX=0,startY=0,origLeft=0,origTop=0;
+  function startDrag(e){
+    if(!e.target.closest('#ppc-drag-handle'))return;
+    e.preventDefault();
+    dragging=true;
+    const r=root.getBoundingClientRect();
+    origLeft=r.left; origTop=r.top;
+    startX=e.clientX; startY=e.clientY;
+    root.style.right='auto'; root.style.bottom='auto';
+    root.style.left=origLeft+'px'; root.style.top=origTop+'px';
+    document.addEventListener('mousemove',onMove);
+    document.addEventListener('mouseup',endDrag);
+  }
+  function onMove(e){
+    if(!dragging)return;
+    root.style.left=Math.max(0,Math.min(window.innerWidth-320,origLeft+e.clientX-startX))+'px';
+    root.style.top =Math.max(0,Math.min(window.innerHeight-100,origTop +e.clientY-startY))+'px';
+  }
+  function endDrag(){
+    if(!dragging)return;
+    dragging=false;
+    document.removeEventListener('mousemove',onMove);
+    document.removeEventListener('mouseup',endDrag);
+    const r=root.getBoundingClientRect();
+    savedPos={right:Math.max(0,window.innerWidth-r.right),bottom:Math.max(0,window.innerHeight-r.bottom)};
+    root.style.left='auto'; root.style.top='auto';
+    root.style.right=savedPos.right+'px'; root.style.bottom=savedPos.bottom+'px';
+    chrome.storage.local.set({ppc_pos:savedPos});
+  }
+  root.addEventListener('mousedown',startDrag);
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+function isAiToolPage(){
+  const h=location.href.toLowerCase();
+  return ['claude.ai','chatgpt.com','chat.openai.com','gemini.google.com',
+    'perplexity.ai','grok.x.ai','copilot.microsoft.com','replit.com',
+    'bolt.new','v0.dev','cursor.sh','cursor.com','bard.google.com'].some(p=>h.includes(p));
+}
+
+function boot(){
+  if(!isAiToolPage()) return; // only run on AI tools
+  chrome.storage.local.get(['ppc_journal','ppc_panel_closed','ppc_pos'],res=>{
+    if(res.ppc_journal)journal=res.ppc_journal;
+    if(res.ppc_panel_closed)panelOpen=false;
+    if(res.ppc_pos)savedPos=res.ppc_pos;
+  });
+  inject();
+
+  // Staggered initial scans — catches messages that render after injection
+  // and handles ChatGPT's SPA which may not have messages in DOM immediately
+  scan();
+  setTimeout(scan, 800);
+  setTimeout(scan, 2000);
+  setTimeout(scan, 4000);
+
+  // Watch for new DOM nodes (new messages as they stream in)
+  new MutationObserver(function(mutations) {
+    var hasNewNodes = mutations.some(function(m) { return m.addedNodes.length > 0; });
+    if (hasNewNodes) scan();
+  }).observe(document.body,{childList:true,subtree:true});
+
+  // Steady-state scan every 4 seconds as a safety net
+  setInterval(scan, 4000);
+
+  // SPA navigation watcher — re-scan when URL changes
+  let lastUrl = location.href;
+  setInterval(function() {
+    if(location.href !== lastUrl){
+      lastUrl = location.href;
+      toolName = detectToolName();
+      sels = SELECTORS[toolName] || {human:[], ai:[]};
+      seenKeys = new Set();
+      addLog('Now on ' + toolName, '#378ADD');
+      userTyping = false;
+      renderFull();
+      // Staggered scans after navigation — gives SPA time to render messages
+      setTimeout(scan, 500);
+      setTimeout(scan, 1500);
+      setTimeout(scan, 3500);
+    }
+  }, 800);
+}
+
+chrome.runtime.onMessage.addListener(function(msg, _, reply) {
+  if (msg.type === 'GET_STATE') {
+    // If turns is 0 but we have messages on the page, trigger a recovery scan
+    if (turns.length === 0) {
+      var hasMessages = document.querySelectorAll('[data-message-author-role]').length > 0
+        || document.querySelectorAll('[data-testid="human-turn"]').length > 0;
+      if (hasMessages) { scan(); setTimeout(scan, 500); }
+    }
+    reply({score, turns:turns.length, human:turns.filter(function(t){return t.author==='human';}).length, journal:journal.length, tool:toolName});
+  }
+  if (msg.type === 'TOGGLE_PANEL') {
+    var p = document.getElementById('ppc-panel-root');
+    if (p) {
+      var show = p.style.display === 'none';
+      p.style.display = show ? 'block' : 'none';
+      panelOpen = show;
+      if (show) renderFull();
+    }
+  }
+  if (msg.type === 'FIRE_WRAP') fireCheck('wrap');
+  if (msg.type === 'RESCAN') { seenKeys = new Set(); scan(); setTimeout(scan, 800); }
+  return true;
+});
+
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot);
+else boot();
+
+// Expose rescan for the panel button
+window.__ppcRescan = function() {
+  seenKeys = new Set();
+  scan();
+  setTimeout(scan, 600);
+  setTimeout(scan, 1500);
+  addLog('Rescanning page...', '#378ADD');
+};
+})();
+
+
+
+============================================================
+FILE: content/eco_autofill.js
+DESCRIPTION: ECO AUTO-FILL SCRIPT — Copyright.gov assistant
+LINES: 591
+============================================================
+
+/**
+ * Patent PreCheck — eCO Auto-fill Content Script
+ * Injected only on eco.copyright.gov / eservice.eco.loc.gov
+ * 
+ * SECURITY NOTE: Never fills payment fields, never clicks Submit/Pay buttons.
+ * User must confirm each field before it is filled. User always clicks Submit.
+ */
+
+(function() {
+'use strict';
+if (window.__ppcEcoLoaded) return;
+window.__ppcEcoLoaded = true;
+
+// ── eCO field map ─────────────────────────────────────────────────────────
+// Siebel eCO uses specific label text to identify fields.
+// We find fields by their labels rather than fragile IDs.
+
+var FIELD_MAP = {
+  // Type of Work screen
+  'Type of Work':           { key: 'f-worktype',   type: 'select' },
+  'Title of This Work':     { key: 'f-title',       type: 'text' },
+  'Title of Larger Work':   { key: null,             type: null },
+
+  // Publication / Completion screen
+  'Year of Completion':     { key: 'f-year',        type: 'text' },
+  'Has this work been published?': { key: 'f-published', type: 'select' },
+  'Date of Publication':    { key: 'f-pubdate',     type: 'text' },
+  'Nation of Publication':  { key: 'f-pubnation',   type: 'select' },
+
+  // Author screen
+  'Author':                 { key: 'f-author',      type: 'text' },
+  'Author\'s Pseudonym':    { key: null,             type: null },
+  'Domicile':               { key: 'f-domicile',    type: 'text' },
+  'Year of Birth':          { key: 'f-birthyear',   type: 'text' },
+  'Nature of Authorship':   { key: 'f-authorship',  type: 'text' },
+  'Work Made for Hire':     { key: 'f-forhire',     type: 'select' },
+
+  // Claimant screen
+  'Name':                   { key: 'f-claimant',    type: 'text' },
+  'Street':                 { key: 'f-claimant-address', type: 'text' },
+
+  // Correspondence screen
+  'Email Address':          { key: null,             type: null }, // never auto-fill
+};
+
+// Work type mapping: our values → eCO dropdown values
+var WORKTYPE_MAP = {
+  'Literary Work': 'Literary Work',
+  'Work of the Visual Arts': 'Work of the Visual Arts',
+  'Work of the Performing Arts': 'Work of Performing Arts',
+  'Sound Recording': 'Sound Recording',
+  'Motion Picture / Audiovisual Work': 'Motion Picture/AV Work',
+  'Single Serial Issue': 'Single Serial Issue',
+};
+
+// ── State ─────────────────────────────────────────────────────────────────
+var formData = {};
+var currentFieldIndex = 0;
+var detectedFields = [];
+var panelVisible = true;
+var currentScreen = '';
+
+// ── Load saved form data ──────────────────────────────────────────────────
+chrome.storage.local.get(['ppc_cr_form'], function(res) {
+  if (res.ppc_cr_form) {
+    formData = res.ppc_cr_form;
+  }
+  init();
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────
+function init() {
+  injectPanel();
+  startWatcher();
+}
+
+// ── Page watcher — eCO is a SPA that updates without full reloads ─────────
+function startWatcher() {
+  // Watch for URL/view changes in the Siebel SPA
+  var lastUrl = location.href;
+  setInterval(function() {
+    if (location.href !== lastUrl) {
+      lastUrl = location.href;
+      onPageChange();
+    }
+    // Also watch for Siebel view container changes
+    detectCurrentScreen();
+  }, 1000);
+
+  // Initial scan after short delay for Siebel to render
+  setTimeout(function() {
+    detectCurrentScreen();
+    onPageChange();
+  }, 2000);
+}
+
+function onPageChange() {
+  detectedFields = [];
+  currentFieldIndex = 0;
+  setTimeout(detectCurrentScreen, 1500);
+}
+
+// ── Screen detection ──────────────────────────────────────────────────────
+function detectCurrentScreen() {
+  var bodyText = document.body.innerText || '';
+
+  // Detect which eCO screen we're on
+  if (bodyText.includes('User Login') || bodyText.includes('User ID')) {
+    currentScreen = 'login';
+  } else if (bodyText.includes('Type of Work') && bodyText.includes('Register')) {
+    currentScreen = 'type_of_work';
+  } else if (bodyText.includes('Year of Completion') || bodyText.includes('Has this work been published')) {
+    currentScreen = 'publication';
+  } else if (bodyText.includes('Nature of Authorship') || (bodyText.includes('Author') && bodyText.includes('Domicile'))) {
+    currentScreen = 'authorship';
+  } else if (bodyText.includes('Copyright Claimant') || (bodyText.includes('Claimant') && bodyText.includes('Street'))) {
+    currentScreen = 'claimant';
+  } else if (bodyText.includes('Rights and Permissions') || bodyText.includes('Correspondence')) {
+    currentScreen = 'correspondence';
+  } else if (bodyText.includes('Certification') || bodyText.includes('Certify')) {
+    currentScreen = 'certification';
+  } else if (bodyText.includes('Shopping Cart') || bodyText.includes('Payment') || bodyText.includes('Credit Card')) {
+    currentScreen = 'payment';
+  } else if (bodyText.includes('Register a New Claim') || bodyText.includes('Home Page')) {
+    currentScreen = 'home';
+  } else {
+    currentScreen = 'unknown';
+  }
+
+  updatePanel();
+  scanFieldsForScreen();
+}
+
+// ── Find Siebel form fields ───────────────────────────────────────────────
+// Siebel renders fields in a table-based layout where labels are in
+// adjacent cells or divs. We find the label, then find the adjacent input.
+function scanFieldsForScreen() {
+  detectedFields = [];
+  var screenFields = getScreenFields(currentScreen);
+  if (!screenFields.length) return;
+
+  screenFields.forEach(function(fieldDef) {
+    var input = findFieldByLabel(fieldDef.label);
+    if (input) {
+      detectedFields.push({
+        label:    fieldDef.label,
+        input:    input,
+        key:      fieldDef.key,
+        value:    formData[fieldDef.key] || '',
+        filled:   false,
+      });
+    }
+  });
+
+  if (detectedFields.length > 0) {
+    currentFieldIndex = 0;
+    updatePanel();
+  }
+}
+
+function getScreenFields(screen) {
+  var screens = {
+    type_of_work: [
+      { label: 'Type of Work',       key: 'f-worktype' },
+      { label: 'Title of This Work', key: 'f-title'    },
+    ],
+    publication: [
+      { label: 'Year of Completion', key: 'f-year'     },
+    ],
+    authorship: [
+      { label: 'Author',             key: 'f-author'   },
+      { label: 'Domicile',           key: 'f-domicile' },
+      { label: 'Year of Birth',      key: 'f-birthyear'},
+      { label: 'Nature of Authorship', key: 'f-authorship' },
+    ],
+    claimant: [
+      { label: 'Name',               key: 'f-claimant' },
+    ],
+  };
+  return screens[screen] || [];
+}
+
+// Find a Siebel input field by its label text
+function findFieldByLabel(labelText) {
+  // Siebel uses various patterns for labels
+  // Method 1: Find span/td with exact label text, then find nearby input
+  var allElements = document.querySelectorAll('span, td, label, div');
+  var labelEl = null;
+
+  for (var i = 0; i < allElements.length; i++) {
+    var el = allElements[i];
+    var text = (el.innerText || el.textContent || '').trim();
+    if (text === labelText || text === labelText + ':' || text.startsWith(labelText)) {
+      // Check it's actually a label (small element, no children with lots of text)
+      if (el.children.length <= 2 && text.length < 60) {
+        labelEl = el;
+        break;
+      }
+    }
+  }
+
+  if (!labelEl) return null;
+
+  // Find the nearest input/select/textarea
+  // Try: next sibling, parent's next sibling, nearby in DOM
+  var input = findNearestInput(labelEl);
+  return input;
+}
+
+function findNearestInput(labelEl) {
+  // Try parent row
+  var parent = labelEl.parentElement;
+  for (var depth = 0; depth < 4; depth++) {
+    if (!parent) break;
+    var inputs = parent.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), select, textarea');
+    if (inputs.length === 1) return inputs[0];
+    if (inputs.length > 0) return inputs[0];
+    parent = parent.parentElement;
+  }
+
+  // Try next sibling elements
+  var sibling = labelEl.nextElementSibling;
+  for (var i = 0; i < 5; i++) {
+    if (!sibling) break;
+    var inp = sibling.querySelector('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), select, textarea');
+    if (inp) return inp;
+    sibling = sibling.nextElementSibling;
+  }
+
+  return null;
+}
+
+// ── Fill a single field ───────────────────────────────────────────────────
+function fillField(fieldDef) {
+  var input = fieldDef.input;
+  var value = fieldDef.value;
+
+  if (!input || !value) return false;
+
+  // Map work type values
+  if (fieldDef.key === 'f-worktype' && WORKTYPE_MAP[value]) {
+    value = WORKTYPE_MAP[value];
+  }
+
+  // Highlight the field
+  var origBorder = input.style.border;
+  var origBg     = input.style.background;
+  input.style.border     = '2px solid #0C447C';
+  input.style.background = '#EBF4FF';
+  input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  // Set value based on field type
+  var tag = input.tagName.toLowerCase();
+  if (tag === 'select') {
+    // Find matching option
+    var opts = input.options;
+    var matched = false;
+    for (var i = 0; i < opts.length; i++) {
+      if (opts[i].text.trim().toLowerCase().includes(value.toLowerCase()) ||
+          opts[i].value.toLowerCase().includes(value.toLowerCase())) {
+        input.selectedIndex = i;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      // Try first option that contains any word from value
+      var words = value.toLowerCase().split(' ');
+      for (var i = 0; i < opts.length; i++) {
+        var optText = opts[i].text.toLowerCase();
+        if (words.some(function(w) { return w.length > 3 && optText.includes(w); })) {
+          input.selectedIndex = i;
+          break;
+        }
+      }
+    }
+  } else {
+    // Text / textarea
+    input.value = value;
+  }
+
+  // Fire change/input events so Siebel's JS picks up the change
+  ['focus','input','change','blur'].forEach(function(evtName) {
+    try {
+      input.dispatchEvent(new Event(evtName, { bubbles: true }));
+    } catch(e) {}
+  });
+
+  // Mark as filled
+  fieldDef.filled = true;
+
+  // Restore highlight after delay
+  setTimeout(function() {
+    input.style.border     = origBorder || '';
+    input.style.background = origBg     || '';
+    // Add a subtle green tint to show it's been filled
+    input.style.background = '#F0FDF4';
+    input.style.border     = '1px solid #86EFAC';
+  }, 1500);
+
+  return true;
+}
+
+// ── Inject the Patent PreCheck panel ─────────────────────────────────────
+function injectPanel() {
+  if (document.getElementById('ppc-eco-root')) return;
+
+  var root = document.createElement('div');
+  root.id = 'ppc-eco-root';
+  root.style.cssText = [
+    'position:fixed',
+    'top:80px',
+    'right:16px',
+    'width:300px',
+    'z-index:2147483647',
+    'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
+  ].join(';');
+
+  document.body.appendChild(root);
+  renderPanel();
+}
+
+// ── Render panel ──────────────────────────────────────────────────────────
+function renderPanel() {
+  var root = document.getElementById('ppc-eco-root');
+  if (!root || !panelVisible) return;
+
+  var hasData      = Object.keys(formData).length > 0;
+  var screenLabel  = getScreenLabel(currentScreen);
+  var fieldsDone   = detectedFields.filter(function(f) { return f.filled; }).length;
+  var fieldsTotal  = detectedFields.length;
+  var currentField = detectedFields[currentFieldIndex];
+  var isPayment    = currentScreen === 'payment' || currentScreen === 'certification';
+  var isLogin      = currentScreen === 'login';
+
+  root.innerHTML = [
+    '<div style="background:#fff;border-radius:14px;border:0.5px solid #e5e7eb;box-shadow:0 8px 32px rgba(0,0,0,.14);overflow:hidden">',
+
+    // Header
+    '<div style="background:#0C447C;padding:12px 14px;display:flex;align-items:center;gap:8px">',
+      '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="white" fill-opacity=".2"/><path d="M5 8l2 2 5-5" stroke="#fff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      '<span style="font-size:13px;font-weight:700;color:#fff;flex:1">Patent PreCheck</span>',
+      '<span style="font-size:10px;background:rgba(255,255,255,.2);color:#fff;padding:2px 8px;border-radius:10px">copyright.gov</span>',
+      '<button onclick="window.__ppcEcoToggle()" style="background:none;border:none;color:rgba(255,255,255,.7);font-size:18px;cursor:pointer;line-height:1;padding:0 0 0 6px">×</button>',
+    '</div>',
+
+    // Screen indicator
+    '<div style="padding:10px 14px;background:#f8faff;border-bottom:0.5px solid #f0f0f0;font-size:11px;color:#6b7280;display:flex;align-items:center;gap:6px">',
+      '<div style="width:6px;height:6px;border-radius:50%;background:' + (isLogin ? '#EF9F27' : isPayment ? '#E24B4A' : '#1D9E75') + '"></div>',
+      '<span>' + screenLabel + '</span>',
+    '</div>',
+
+    // Content
+    getContentHTML(hasData, isLogin, isPayment, currentField, fieldsTotal, fieldsDone),
+
+    '</div>',
+  ].join('');
+
+  wireEvents();
+}
+
+function getContentHTML(hasData, isLogin, isPayment, currentField, total, done) {
+  // No data loaded
+  if (!hasData) {
+    return [
+      '<div style="padding:16px;font-size:12px;color:#6b7280;line-height:1.65;text-align:center">',
+        '<div style="font-size:32px;margin-bottom:8px">⚠️</div>',
+        '<strong style="color:#374151;display:block;margin-bottom:6px">No application data found</strong>',
+        'Complete the copyright wizard in Patent PreCheck first, then return here to auto-fill your forms.',
+        '<br><br>',
+        '<a href="' + chrome.runtime.getURL('dashboard/copyright.html') + '" target="_blank" ',
+          'style="background:#0C447C;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block">',
+          'Open copyright wizard →',
+        '</a>',
+      '</div>',
+    ].join('');
+  }
+
+  // Login screen
+  if (isLogin) {
+    return [
+      '<div style="padding:14px">',
+        '<div style="font-size:12px;color:#374151;line-height:1.65;margin-bottom:12px">',
+          '✓ Application data loaded from your Patent PreCheck session.',
+          '<br><br>',
+          '<strong>Log in to your eCO account</strong> using your username and password. Patent PreCheck will then help you fill out each section automatically.',
+        '</div>',
+        '<div style="background:#EAF3DE;border-radius:8px;padding:10px 12px;font-size:11px;color:#276749">',
+          'Don\'t have an account? <a href="https://eco.copyright.gov/eService_enu/" style="color:#0C447C;font-weight:600">Register free on copyright.gov</a>',
+        '</div>',
+      '</div>',
+    ].join('');
+  }
+
+  // Payment screen — STOP
+  if (isPayment) {
+    return [
+      '<div style="padding:14px">',
+        '<div style="background:#FEF2F2;border-radius:8px;padding:12px;font-size:12px;color:#B91C1C;line-height:1.6;margin-bottom:10px">',
+          '<strong>⛔ Patent PreCheck stops here</strong><br>',
+          'Payment and final submission must be completed by you directly. We never handle payment or click Submit on your behalf.',
+        '</div>',
+        '<div style="font-size:12px;color:#374151;line-height:1.65">',
+          '1. Review your application one more time<br>',
+          '2. Enter your payment details<br>',
+          '3. Click Pay / Submit yourself<br><br>',
+          '<strong style="color:#1D9E75">Your registration is effective on the day you pay.</strong> Save your Service Request number afterward.',
+        '</div>',
+      '</div>',
+    ].join('');
+  }
+
+  // No fields detected on this screen yet
+  if (total === 0) {
+    return [
+      '<div style="padding:14px;font-size:12px;color:#6b7280;line-height:1.65;text-align:center">',
+        '<div style="font-size:28px;margin-bottom:8px">🔍</div>',
+        'Scanning this page for fields...',
+        '<br><br>',
+        'If fields don\'t appear, navigate to a form section on eCO and Patent PreCheck will detect them automatically.',
+      '</div>',
+    ].join('');
+  }
+
+  // Normal field-fill mode
+  var allDone = done === total;
+
+  if (allDone) {
+    return [
+      '<div style="padding:14px">',
+        '<div style="background:#EAF3DE;border-radius:8px;padding:12px;font-size:12px;color:#276749;line-height:1.55;margin-bottom:10px;text-align:center">',
+          '<strong>✓ All ' + total + ' fields filled on this screen</strong><br>',
+          'Review each field, then click <strong>Save</strong> or <strong>Next</strong> on the eCO form to continue.',
+        '</div>',
+        '<div style="font-size:11px;color:#9ca3af;text-align:center">Patent PreCheck will detect the next screen automatically.</div>',
+      '</div>',
+    ].join('');
+  }
+
+  // Show current field to fill
+  return [
+    // Progress
+    '<div style="padding:10px 14px 0">',
+      '<div style="display:flex;justify-content:space-between;font-size:10px;color:#9ca3af;margin-bottom:5px">',
+        '<span>Fields on this screen</span><span>' + done + ' of ' + total + ' filled</span>',
+      '</div>',
+      '<div style="height:4px;background:#f0f0f0;border-radius:2px;overflow:hidden;margin-bottom:10px">',
+        '<div style="height:100%;width:' + Math.round((done/total)*100) + '%;background:#0C447C;border-radius:2px;transition:width .4s"></div>',
+      '</div>',
+    '</div>',
+
+    // Current field card
+    currentField ? [
+      '<div style="margin:0 14px 14px;background:#f9fafb;border:1.5px solid #e5e7eb;border-radius:10px;overflow:hidden">',
+        '<div style="padding:10px 12px 6px;font-size:9px;font-weight:700;color:#9ca3af;letter-spacing:.06em;text-transform:uppercase;display:flex;justify-content:space-between">',
+          '<span>Next field to fill</span>',
+          '<span>eCO label: ' + currentField.label + '</span>',
+        '</div>',
+        '<div style="padding:4px 12px 10px;font-size:13px;color:#111827;line-height:1.5;font-weight:500">' + (currentField.value || '<em style="color:#E24B4A;font-weight:400">No data — enter manually</em>') + '</div>',
+        currentField.value ? [
+          '<div style="padding:0 10px 10px;display:flex;gap:7px">',
+            '<button id="ppc-eco-fill" style="flex:1;background:#0C447C;color:#fff;border:none;border-radius:7px;padding:8px;font-size:12px;font-weight:600;cursor:pointer">',
+              'Fill this field →',
+            '</button>',
+            '<button id="ppc-eco-skip" style="background:#fff;border:1px solid #e5e7eb;border-radius:7px;padding:8px 10px;font-size:11px;color:#9ca3af;cursor:pointer">Skip</button>',
+          '</div>',
+        ].join('') : [
+          '<div style="padding:0 10px 10px">',
+            '<button id="ppc-eco-skip" style="width:100%;background:#fff;border:1px solid #e5e7eb;border-radius:7px;padding:8px;font-size:11px;color:#9ca3af;cursor:pointer">Skip — I\'ll fill manually</button>',
+          '</div>',
+        ].join(''),
+      '</div>',
+    ].join('') : '',
+
+    // Fill all button
+    '<div style="padding:0 14px 14px">',
+      '<button id="ppc-eco-fillall" style="width:100%;background:#EBF4FF;color:#0C447C;border:1px solid #BFDBFE;border-radius:8px;padding:8px;font-size:11px;font-weight:600;cursor:pointer">',
+        '⚡ Fill all ' + (total - done) + ' remaining fields at once',
+      '</button>',
+    '</div>',
+
+    // Fields list
+    '<div style="padding:0 14px 14px">',
+      '<div style="font-size:10px;font-weight:700;color:#9ca3af;letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px">All fields this screen</div>',
+      detectedFields.map(function(f, idx) {
+        return [
+          '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:0.5px solid #f5f5f5;cursor:pointer" onclick="window.__ppcEcoJumpTo(' + idx + ')">',
+            '<div style="width:16px;height:16px;border-radius:50%;border:1.5px solid ' + (f.filled ? '#1D9E75' : idx === currentFieldIndex ? '#0C447C' : '#e5e7eb') + ';background:' + (f.filled ? '#1D9E75' : 'transparent') + ';display:flex;align-items:center;justify-content:center;flex-shrink:0">',
+              f.filled ? '<svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1.5 4l2 2 3.5-3.5" stroke="#fff" stroke-width="1.3" stroke-linecap="round"/></svg>' : '',
+            '</div>',
+            '<span style="font-size:11px;color:' + (f.filled ? '#1D9E75' : '#374151') + ';flex:1">' + f.label + '</span>',
+            '<span style="font-size:10px;color:#9ca3af;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (f.value ? f.value.slice(0,20) : '—') + '</span>',
+          '</div>',
+        ].join('');
+      }).join(''),
+    '</div>',
+  ].join('');
+}
+
+function getScreenLabel(screen) {
+  var labels = {
+    login:          'Login screen — please log in to continue',
+    home:           'eCO Home — click "Register a New Claim"',
+    type_of_work:   'Type of Work screen',
+    publication:    'Publication / Completion screen',
+    authorship:     'Author screen',
+    claimant:       'Copyright Claimant screen',
+    correspondence: 'Rights & Permissions screen',
+    certification:  'Certification screen — review carefully',
+    payment:        'Payment screen — complete this yourself',
+    unknown:        'Scanning page...',
+  };
+  return labels[screen] || 'Scanning...';
+}
+
+// ── Wire panel button events ───────────────────────────────────────────────
+function wireEvents() {
+  var fillBtn    = document.getElementById('ppc-eco-fill');
+  var skipBtn    = document.getElementById('ppc-eco-skip');
+  var fillAllBtn = document.getElementById('ppc-eco-fillall');
+
+  if (fillBtn) {
+    fillBtn.addEventListener('click', function() {
+      var field = detectedFields[currentFieldIndex];
+      if (field) {
+        var ok = fillField(field);
+        if (ok) {
+          currentFieldIndex = nextUnfilled(currentFieldIndex + 1);
+        } else {
+          currentFieldIndex = nextUnfilled(currentFieldIndex + 1);
+        }
+        renderPanel();
+      }
+    });
+  }
+
+  if (skipBtn) {
+    skipBtn.addEventListener('click', function() {
+      currentFieldIndex = nextUnfilled(currentFieldIndex + 1);
+      renderPanel();
+    });
+  }
+
+  if (fillAllBtn) {
+    fillAllBtn.addEventListener('click', function() {
+      detectedFields.forEach(function(f, idx) {
+        if (!f.filled && f.value) {
+          setTimeout(function() { fillField(f); }, idx * 300);
+        }
+      });
+      setTimeout(function() {
+        currentFieldIndex = detectedFields.length;
+        renderPanel();
+      }, detectedFields.length * 300 + 500);
+    });
+  }
+
+  window.__ppcEcoToggle = function() {
+    panelVisible = false;
+    var root = document.getElementById('ppc-eco-root');
+    if (root) {
+      root.innerHTML = '<div style="background:#0C447C;border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 3px 12px rgba(12,68,124,.35)" onclick="window.__ppcEcoShow()">' +
+        '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="#fff" stroke-width="1.5"/><path d="M6.5 10l2.5 2.5 5.5-5.5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+        '</div>';
+    }
+  };
+
+  window.__ppcEcoShow = function() {
+    panelVisible = true;
+    renderPanel();
+  };
+
+  window.__ppcEcoJumpTo = function(idx) {
+    currentFieldIndex = idx;
+    renderPanel();
+  };
+}
+
+function nextUnfilled(startIdx) {
+  for (var i = startIdx; i < detectedFields.length; i++) {
+    if (!detectedFields[i].filled) return i;
+  }
+  return detectedFields.length; // all done
+}
+
+// Update panel without full re-render when possible
+function updatePanel() {
+  renderPanel();
+}
+
+})();
+
+
+
+============================================================
+FILE: background/background.js
+DESCRIPTION: BACKGROUND SERVICE WORKER
+LINES: 91
+============================================================
+
+// background/background.js — Patent PreCheck service worker
+
+chrome.runtime.onInstalled.addListener(function(details) {
+  if (details.reason === 'install') {
+    chrome.storage.local.set({
+      ppc_enabled:      true,
+      ppc_score:        null,
+      ppc_journal:      [],
+      ppc_install_date: Date.now(),
+      ppc_panel_closed: false,
+    });
+  }
+});
+
+// ── Message relay ───────────────────────────────────────────────────────────
+chrome.runtime.onMessage.addListener(function(msg, sender, reply) {
+
+  // Open dashboard tab — guard against tabs API being unavailable
+  if (msg.type === 'OPEN_DASHBOARD') {
+    try {
+      var url = chrome.runtime.getURL('dashboard/dashboard.html');
+      chrome.tabs.create({ url: url }, function() {
+        if (chrome.runtime.lastError) {
+          console.warn('Patent PreCheck: could not open dashboard -', chrome.runtime.lastError.message);
+        }
+      });
+    } catch(e) {
+      console.warn('Patent PreCheck: OPEN_DASHBOARD error -', e.message);
+    }
+    return false;
+  }
+
+  // Open copyright wizard tab
+  if (msg.type === 'OPEN_COPYRIGHT') {
+    try {
+      var url = chrome.runtime.getURL('dashboard/copyright.html');
+      chrome.tabs.create({ url: url }, function() {
+        if (chrome.runtime.lastError) {
+          console.warn('Patent PreCheck: could not open copyright wizard -', chrome.runtime.lastError.message);
+        }
+      });
+    } catch(e) {
+      console.warn('Patent PreCheck: OPEN_COPYRIGHT error -', e.message);
+    }
+    return false;
+  }
+
+  // Relay GET_STATE from popup to active tab content script
+  if (msg.type === 'POPUP_GET_STATE') {
+    try {
+      chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+        if (chrome.runtime.lastError) {
+          try { reply({ error: 'query failed' }); } catch(e) {}
+          return;
+        }
+        var tab = tabs && tabs[0];
+        if (!tab) {
+          try { reply({ error: 'no active tab' }); } catch(e) {}
+          return;
+        }
+        chrome.tabs.sendMessage(tab.id, { type: 'GET_STATE' }, function(res) {
+          if (chrome.runtime.lastError) {
+            try { reply({ error: 'content script not ready' }); } catch(e) {}
+            return;
+          }
+          try { reply(res || { error: 'no response' }); } catch(e) {}
+        });
+      });
+    } catch(e) {
+      try { reply({ error: e.message }); } catch(e2) {}
+    }
+    return true; // keep channel open for async reply
+  }
+
+  // Toggle panel in active tab
+  if (msg.type === 'POPUP_TOGGLE_PANEL') {
+    try {
+      chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+        if (chrome.runtime.lastError) return;
+        var tab = tabs && tabs[0];
+        if (!tab) return;
+        chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_PANEL' }, function() {
+          if (chrome.runtime.lastError) {} // ignore — panel may not be injected yet
+        });
+      });
+    } catch(e) {}
+    return false;
+  }
+
+  return false;
+});
+
+
+
+============================================================
+FILE: popup/popup.js
+DESCRIPTION: TOOLBAR POPUP SCRIPT
+LINES: 92
+============================================================
+
+// popup/popup.js
+
+const AI_TOOLS = ['chatgpt','openai','claude','gemini','google','perplexity','copilot','grok','replit','bolt','v0.dev','cursor'];
+
+function isAiToolTab(url) {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  return AI_TOOLS.some(t => lower.includes(t));
+}
+
+async function getActiveTab() {
+  return new Promise(resolve => {
+    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) { resolve(tabs && tabs[0]); });
+  });
+}
+
+function updateScore(data) {
+  if (!data || data.error) return;
+
+  const s = data.score || {};
+  const overall = s.overall || 0;
+
+  document.getElementById('ring-num').textContent = overall || '–';
+
+  const circumference = 201;
+  const offset = circumference - (overall / 100) * circumference;
+  const ring = document.getElementById('ring-fill');
+  ring.style.strokeDashoffset = offset;
+  ring.style.stroke = overall >= 80 ? '#1D9E75' : overall >= 60 ? '#378ADD' : overall >= 40 ? '#EF9F27' : '#E24B4A';
+
+  const band = document.getElementById('score-band');
+  band.textContent = overall >= 80 ? 'File-ready'
+    : overall >= 60 ? 'Strong position'
+    : overall >= 40 ? 'Building strength'
+    : overall >  0  ? 'Not yet ready'
+    : 'Start your conversation';
+  band.style.color = overall >= 80 ? '#1D9E75' : overall >= 60 ? '#378ADD' : overall >= 40 ? '#EF9F27' : overall > 0 ? '#E24B4A' : '#9ca3af';
+
+  // Breakdown
+  const c = s.conception || 0, e = s.eligibility || 0, d = s.documentation || 0;
+  document.getElementById('bar-c').style.width = c + '%';
+  document.getElementById('bar-e').style.width = e + '%';
+  document.getElementById('bar-d').style.width = d + '%';
+  document.getElementById('val-c').textContent = c || '–';
+  document.getElementById('val-e').textContent = e || '–';
+  document.getElementById('val-d').textContent = d || '–';
+
+  document.getElementById('stat-turns').textContent  = data.turns   || '–';
+  document.getElementById('stat-human').textContent  = data.human   || '–';
+  document.getElementById('stat-journal').textContent= data.journal  || '–';
+  document.getElementById('tool-badge').textContent  = data.tool    || 'AI Tool';
+
+  document.getElementById('status-dot').className   = 'status-dot';
+  document.getElementById('status-text').textContent = `Active on ${data.tool || 'this page'}`;
+}
+
+async function init() {
+  const tab = await getActiveTab();
+
+  if (!tab || !isAiToolTab(tab.url)) {
+    document.getElementById('status-dot').className    = 'status-dot inactive';
+    document.getElementById('status-text').textContent = 'Open an AI tool to start tracking';
+    document.getElementById('tool-badge').textContent  = 'Not an AI tool';
+    return;
+  }
+
+  // Request state from content script
+  chrome.tabs.sendMessage(tab.id, { type: 'GET_STATE' }, res => {
+    if (chrome.runtime.lastError) {
+      document.getElementById('status-text').textContent = 'Loading...';
+      return;
+    }
+    updateScore(res);
+  });
+
+  // Buttons
+  document.getElementById('btn-open-panel').addEventListener('click', () => {
+    chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_PANEL' });
+    window.close();
+  });
+
+  document.getElementById('btn-wrap').addEventListener('click', () => {
+    chrome.tabs.sendMessage(tab.id, { type: 'FIRE_WRAP' });
+    window.close();
+  });
+
+  document.getElementById('btn-dashboard').addEventListener('click', () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/dashboard.html') });
+  });
+}
+
+init();
+
+
+
+============================================================
+FILE: dashboard/dashboard.js
+DESCRIPTION: DASHBOARD SCRIPT
+LINES: 241
+============================================================
+
+// dashboard/dashboard.js — runs inside chrome-extension://... page
+
+// ── Colour helpers ─────────────────────────────────────────────────────────
+function scol(s) {
+  return s >= 80 ? '#1D9E75' : s >= 60 ? '#378ADD' : s >= 40 ? '#EF9F27' : s > 0 ? '#E24B4A' : '#9ca3af';
+}
+function sband(s) {
+  return s >= 80 ? 'File-ready' : s >= 60 ? 'Strong position' : s >= 40 ? 'Building strength' : s > 0 ? 'Not yet ready' : 'Not started';
+}
+function statusLabel(s) {
+  if (s >= 80) return 'Ready to file — no action needed';
+  if (s >= 60) return 'Mostly ready — minor gaps';
+  if (s >= 40) return '1 area needs attention';
+  if (s > 0)   return 'Critical areas of concern';
+  return 'No data yet';
+}
+
+// ── Render helpers ─────────────────────────────────────────────────────────
+function setText(id, val) {
+  var el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+function setColor(id, col) {
+  var el = document.getElementById(id);
+  if (el) el.style.color = col;
+}
+function setWidth(id, pct) {
+  var el = document.getElementById(id);
+  if (el) el.style.width = pct + '%';
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function renderHero(score, journal) {
+  var s = (score && score.overall) ? score.overall : 0;
+  setText('overall-num', s > 0 ? s : '–');
+  setColor('overall-num', scol(s));
+
+  var atRisk = s >= 60 ? 'your position is solid' : s >= 40 ? 'some areas need strengthening' : s > 0 ? 'your score is in the critical zone' : '';
+  var docNote = journal.length === 0
+    ? 'No evidence saved yet — use the panel to log decisions and your idea moments.'
+    : journal.length + ' piece' + (journal.length > 1 ? 's' : '') + ' of evidence saved.';
+
+  setText('hero-summary-text', s > 0
+    ? 'Your Patent PreCheck Score is ' + s + '/100 — ' + atRisk + '. ' + docNote
+    : 'Start a conversation on any AI tool and your score will appear here in real time.');
+
+  var pillsEl = document.getElementById('hero-pills');
+  if (pillsEl && s > 0) {
+    var html = '';
+    if (s < 50) html += '<span class="pill pill-red">Score at high risk</span>';
+    if (s >= 50 && s < 70) html += '<span class="pill pill-amber">Needs strengthening</span>';
+    if (s >= 70) html += '<span class="pill pill-green">Strong position</span>';
+    if (journal.length > 0) html += '<span class="pill pill-green">' + journal.length + ' evidence saved</span>';
+    pillsEl.innerHTML = html;
+  }
+}
+
+function renderAxes(score) {
+  if (!score) return;
+  var axes = [
+    { key: 'conception',   color: '#0C447C' },
+    { key: 'eligibility',  color: '#378ADD' },
+    { key: 'documentation',color: '#1D9E75' },
+  ];
+  axes.forEach(function(a) {
+    var val = score[a.key] || 0;
+    setText('axis-' + a.key, val ? val + '/100' : '–');
+    setColor('axis-' + a.key, val ? scol(val) : '#9ca3af');
+    setWidth('axis-bar-' + a.key, val);
+  });
+
+  var c = score.conception || 0;
+  setText('axis-note-conception', c >= 60
+    ? c + '% — above the 60% target. Strong human contribution.'
+    : c > 0
+      ? c + '% — below the 60% target. More documented decisions will raise this.'
+      : '50% of total score. Target: above 60% for a strong patent position.');
+}
+
+function renderFeatures(state) {
+  var grid = document.getElementById('features-grid');
+  if (!grid) return;
+
+  var total  = state.turns  || 0;
+  var human  = state.human  || 0;
+  var ai     = total - human;
+  var score  = state.score  || {};
+  var tool   = state.tool   || 'AI Tool';
+
+  if (total === 0) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:32px;color:#9ca3af;font-size:13px;background:#fff;border-radius:12px;border:0.5px solid #e5e7eb">Start a conversation on any AI tool to see your messages scored here.</div>';
+    return;
+  }
+
+  var items = [
+    { name: 'Your messages',              score: human,                  col: scol(score.conception || 0), note: human + ' human messages captured', pct: Math.min(100, human * 10) },
+    { name: tool + ' responses',          score: ai,                     col: '#9ca3af',                   note: 'AI-generated — not counted toward your score', pct: Math.min(100, ai * 10) },
+    { name: 'How much came from you',     score: score.conception || 0,  col: scol(score.conception || 0), note: 'How much came from you — 50% weight',           pct: score.conception || 0 },
+    { name: 'Can it be patented?',score: score.eligibility || 0, col: scol(score.eligibility || 0),note: 'patentability estimate — 35% weight',         pct: score.eligibility || 0 },
+    { name: 'How well documented',        score: score.documentation || 0, col: scol(score.documentation || 0), note: 'Evidence logged — 15% weight',              pct: score.documentation || 0 },
+  ];
+
+  grid.innerHTML = items.map(function(item) {
+    return '<div class="feature-card">' +
+      '<div class="fc-top">' +
+        '<div class="fc-name">' + item.name + '</div>' +
+        '<div class="fc-score" style="color:' + item.col + '">' + (item.score || '–') + '</div>' +
+      '</div>' +
+      '<div class="fc-bar-track"><div class="fc-bar-fill" style="width:' + (item.pct || 0) + '%;background:' + item.col + '"></div></div>' +
+      '<div class="fc-status" style="color:' + item.col + '">' + item.note + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function renderJournal(entries) {
+  var el = document.getElementById('journal-container');
+  if (!el) return;
+
+  if (!entries || entries.length === 0) {
+    el.innerHTML = '<div class="journal-empty">No ideas logged yet. When a prompt appears in the panel, save your answer and it will appear here.</div>';
+    return;
+  }
+
+  var catColors = {
+    1: ['#E24B4A', '#FCEBEB'],
+    2: ['#378ADD', '#E6F1FB'],
+    3: ['#EF9F27', '#FAEEDA'],
+    4: ['#1D9E75', '#EAF3DE'],
+  };
+  var catLabels  = { 1:'YOUR IDEA', 2:'AI INTERACTION', 3:'YOUR DECISION', 4:'ON RECORD' };
+  var trigLabels = { conception:'Your idea', param:'AI suggested a value', strong:'Your own thinking', ratio:'Too much AI output', wrap:'Before you go' };
+
+  var sorted = entries.slice().reverse();
+  el.innerHTML = sorted.map(function(e) {
+    var colors = catColors[e.category] || ['#9ca3af', '#f5f5f5'];
+    var tc = colors[0], bg = colors[1];
+    var time = e.timestamp ? new Date(e.timestamp).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
+    var label = catLabels[e.category] || 'NOTE';
+    var trig  = trigLabels[e.trigger] || e.trigger || '';
+    return '<div class="journal-entry">' +
+      '<div class="je-top">' +
+        '<span class="je-pill" style="background:' + bg + ';color:' + tc + '">' + label + '</span>' +
+        '<span style="font-size:11px;color:#374151;font-weight:500">' + trig + '</span>' +
+        '<span class="je-time">' + time + '</span>' +
+      '</div>' +
+      '<div class="je-answer">' + (e.answer || '') + '</div>' +
+      '<div class="je-gain">+' + (e.scoreGain || 0) + ' pts · Saved from ' + (e.tool || 'AI Tool') + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function detectTool(url) {
+  if (!url) return 'AI Tool';
+  var u = url.toLowerCase();
+  if (u.indexOf('claude.ai') >= 0)      return 'Claude';
+  if (u.indexOf('chatgpt.com') >= 0)    return 'ChatGPT';
+  if (u.indexOf('gemini.google') >= 0)  return 'Gemini';
+  if (u.indexOf('perplexity.ai') >= 0)  return 'Perplexity';
+  return 'AI Tool';
+}
+
+// ── Export ─────────────────────────────────────────────────────────────────
+function exportReport() {
+  chrome.storage.local.get(['ppc_score', 'ppc_journal'], function(res) {
+    var score   = res.ppc_score   || {};
+    var journal = res.ppc_journal || [];
+    var date    = new Date().toLocaleString();
+    var lines   = [
+      'Patent PreCheck — Evidence Report',
+      'Generated: ' + date,
+      '',
+      'Overall Patent PreCheck Score: ' + (score.overall || 0) + '/100',
+      'Human Conception: ' + (score.conception || 0) + '/100',
+      'Patent Eligibility: ' + (score.eligibility || 0) + '/100',
+      'Documentation: ' + (score.documentation || 0) + '/100',
+      '',
+      '=== EVIDENCE JOURNAL ===',
+      '',
+    ];
+    journal.forEach(function(e) {
+      lines.push('[' + new Date(e.timestamp).toLocaleString() + '] ' + (e.trigger || '').toUpperCase() + ' (+' + e.scoreGain + ' pts)');
+      lines.push(e.answer);
+      lines.push('');
+    });
+    var blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement('a');
+    a.href = url;
+    a.download = 'patent-precheck-report-' + Date.now() + '.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+}
+
+// ── Boot — wait for DOM then load storage ──────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+
+  // Wire export button
+  var exportBtn = document.getElementById('btn-export');
+  if (exportBtn) exportBtn.addEventListener('click', exportReport);
+
+  // Load from storage first
+  chrome.storage.local.get(['ppc_score', 'ppc_journal', 'ppc_journal_entries'], function(res) {
+    var score   = res.ppc_score || { overall:0, conception:0, eligibility:0, documentation:10 };
+    var journal = res.ppc_journal || res.ppc_journal_entries || [];
+
+    renderHero(score, journal);
+    renderAxes(score);
+    renderJournal(journal);
+
+    // Then try to get live data from active tab
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }, function(tabs) {
+      if (!tabs || !tabs[0]) return;
+      var tab = tabs[0];
+      var toolName = detectTool(tab.url);
+      setText('nav-tool', toolName);
+      setText('nav-session', 'Active on ' + toolName);
+
+      chrome.tabs.sendMessage(tab.id, { type: 'GET_STATE' }, function(state) {
+        if (chrome.runtime.lastError || !state) return;
+        if (state.score) {
+          renderHero(state.score, journal);
+          renderAxes(state.score);
+        }
+        if (state.tool) setText('nav-tool', state.tool);
+        renderFeatures(state);
+      });
+    });
+  });
+
+  // Live storage updates
+  chrome.storage.onChanged.addListener(function(changes) {
+    chrome.storage.local.get(['ppc_score', 'ppc_journal'], function(res) {
+      var score   = res.ppc_score   || {};
+      var journal = res.ppc_journal || [];
+      renderHero(score, journal);
+      renderAxes(score);
+      renderJournal(journal);
+    });
+  });
+});
+
+
+
+============================================================
+FILE: dashboard/filing.js
+DESCRIPTION: FILING WIZARD SCRIPT
+LINES: 354
+============================================================
+
+// dashboard/filing.js
+
+var filingType = null;
+var sessionData = { score: {}, journal: [], turns: 0, tool: 'AI Tool' };
+
+// ── Disclaimer ─────────────────────────────────────────────────────────────
+function onCheck(checkbox) {
+  var row = document.getElementById('checkbox-row');
+  var btn = document.getElementById('btn-proceed');
+  if (checkbox.checked) {
+    row.classList.add('checked');
+    btn.classList.add('active');
+    btn.disabled = false;
+  } else {
+    row.classList.remove('checked');
+    btn.classList.remove('active');
+    btn.disabled = true;
+  }
+}
+
+function proceedFromDisclaimer() {
+  var checked = document.getElementById('disclaimer-check').checked;
+  if (!checked) return;
+  // Record that disclaimer was accepted with timestamp
+  chrome.storage.local.set({ ppc_disclaimer_accepted: Date.now() });
+  document.getElementById('disclaimer-overlay').style.display = 'none';
+  showPage('page-choose');
+}
+
+// ── Page routing ───────────────────────────────────────────────────────────
+function showPage(id) {
+  var pages = ['page-choose', 'page-copyright', 'page-provisional', 'page-complete'];
+  pages.forEach(function(p) {
+    var el = document.getElementById(p);
+    if (el) el.classList.toggle('page-hidden', p !== id);
+  });
+  window.scrollTo(0, 0);
+}
+
+function startFiling(type) {
+  filingType = type;
+  if (type === 'copyright') {
+    showPage('page-copyright');
+    prefillCopyright();
+  } else {
+    showPage('page-provisional');
+    prefillProvisional();
+  }
+}
+
+function showHelp() { toggleHelp(); }
+
+function toggleHelp() {
+  var panel = document.getElementById('help-panel');
+  if (!panel) return;
+  var open = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : 'block';
+  // Scroll into view if opening
+  if (!open) setTimeout(function() { panel.scrollIntoView({ behavior:'smooth', block:'nearest' }); }, 50);
+}
+
+// ── Account checkbox helper ────────────────────────────────────────────────
+function toggleAccountDone(rowId, checkId, nextId) {
+  var row   = document.getElementById(rowId);
+  var check = document.getElementById(checkId);
+  var next  = document.getElementById(nextId);
+  check.checked = !check.checked;
+  if (check.checked) {
+    row.classList.add('checked-row');
+    if (next) { next.disabled = false; next.style.opacity = '1'; }
+  } else {
+    row.classList.remove('checked-row');
+    if (next) { next.disabled = true; next.style.opacity = '0.4'; }
+  }
+}
+
+// ── Copyright step navigation ──────────────────────────────────────────────
+function crStep(n) {
+  [1, 2, 3, 4].forEach(function(i) {
+    var el = document.getElementById('cr-step-' + i);
+    if (el) el.style.display = i === n ? 'block' : 'none';
+    var dot = document.getElementById('cr-dot-' + i);
+    if (dot) {
+      dot.classList.remove('active', 'done');
+      if (i < n) dot.classList.add('done');
+      if (i === n) dot.classList.add('active');
+    }
+    var label = document.getElementById('cr-label-' + i);
+    if (label) {
+      label.classList.remove('active', 'done');
+      if (i < n) label.classList.add('done');
+      if (i === n) label.classList.add('active');
+    }
+    if (i < 4) {
+      var line = document.getElementById('cr-line-' + i);
+      if (line) line.classList.toggle('done', i < n);
+    }
+  });
+  if (n === 4) buildCrSummary();
+  window.scrollTo(0, 0);
+}
+
+function buildCrSummary() {
+  var title       = val('cr-title');
+  var workType    = val('cr-work-type');
+  var year        = val('cr-year');
+  var description = val('cr-description');
+  var author      = val('cr-author');
+  var authorship  = val('cr-authorship');
+  var claimant    = val('cr-claimant');
+  var el = document.getElementById('cr-summary-content');
+  if (el) {
+    el.innerHTML =
+      row('Type of Work', workType) +
+      row('Title', title) +
+      row('Year of Completion', year) +
+      row('Description', description) +
+      row('Author', author) +
+      row('Nature of Authorship', authorship) +
+      row('Copyright Claimant', claimant);
+  }
+}
+
+// ── Provisional step navigation ────────────────────────────────────────────
+function prStep(n) {
+  [1, 2, 3, 4, 5].forEach(function(i) {
+    var el = document.getElementById('pr-step-' + i);
+    if (el) el.style.display = i === n ? 'block' : 'none';
+    var dot = document.getElementById('pr-dot-' + i);
+    if (dot) {
+      dot.classList.remove('active', 'done');
+      if (i < n) dot.classList.add('done');
+      if (i === n) dot.classList.add('active');
+    }
+    var label = document.getElementById('pr-label-' + i);
+    if (label) {
+      label.classList.remove('active', 'done');
+      if (i < n) label.classList.add('done');
+      if (i === n) label.classList.add('active');
+    }
+    if (i < 5) {
+      var line = document.getElementById('pr-line-' + i);
+      if (line) line.classList.toggle('done', i < n);
+    }
+  });
+  if (n === 4) buildProvisionalDoc();
+  window.scrollTo(0, 0);
+}
+
+function buildProvisionalDoc() {
+  var title    = val('pr-title');
+  var field    = val('pr-field');
+  var bg       = val('pr-background');
+  var summary  = val('pr-summary');
+  var inventor = val('pr-inventor-name');
+  var city     = val('pr-inventor-city');
+  var address  = val('pr-inventor-address');
+  var date     = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+
+  var doc =
+    'PROVISIONAL PATENT APPLICATION\n' +
+    '================================\n\n' +
+    'Title: ' + (title || '[Title of Invention]') + '\n' +
+    'Date Prepared: ' + date + '\n' +
+    'Inventor(s): ' + (inventor || '[Inventor Name]') + '\n' +
+    'Residence: ' + (city || '[City, State, Country]') + '\n\n' +
+    '1. FIELD OF THE INVENTION\n' +
+    '--------------------------\n' +
+    (field || '[Describe the technical field this invention belongs to]') + '\n\n' +
+    '2. BACKGROUND\n' +
+    '--------------\n' +
+    (bg || '[Describe the problem that existed before this invention and why existing approaches were inadequate]') + '\n\n' +
+    '3. SUMMARY OF THE INVENTION\n' +
+    '----------------------------\n' +
+    (summary || '[Describe your invention — what it does, how it works, and what makes it new and useful]') + '\n\n' +
+    '4. DETAILED DESCRIPTION\n' +
+    '------------------------\n' +
+    'The invention described herein was conceived by ' + (inventor || '[Inventor]') +
+    ' independently, using AI tools as assistants only. The following is a detailed description of the preferred embodiment:\n\n' +
+    (summary || '') + '\n\n' +
+    '5. INVENTOR DECLARATION\n' +
+    '------------------------\n' +
+    'I, ' + (inventor || '[Inventor Name]') + ', residing at ' + (address || '[Address]') + ', ' +
+    'hereby declare that I am the original inventor of the invention described herein. ' +
+    'I believe the foregoing information to be true and correct.\n\n' +
+    'Signature: ___________________________\n' +
+    'Date: ' + date + '\n\n' +
+    '--- END OF PROVISIONAL APPLICATION ---\n' +
+    '\nPrepared with Patent PreCheck · patentprecheck.com\n' +
+    'Patent PreCheck is not a law firm and does not provide legal advice.\n' +
+    'Review all content carefully before filing.';
+
+  var el = document.getElementById('pr-doc-preview');
+  if (el) el.textContent = doc;
+  window._provisionalDoc = doc;
+  window._provisionalTitle = title;
+}
+
+function downloadProvisional() {
+  var doc   = window._provisionalDoc || 'No document generated yet.';
+  var title = (window._provisionalTitle || 'provisional-patent').replace(/[^a-z0-9]/gi, '-').toLowerCase();
+  var blob  = new Blob([doc], { type: 'text/plain' });
+  var url   = URL.createObjectURL(blob);
+  var a     = document.createElement('a');
+  a.href     = url;
+  a.download = 'patent-precheck-' + title + '-provisional.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Complete filing ────────────────────────────────────────────────────────
+function completeFiling(type) {
+  var sub = document.getElementById('complete-sub');
+  if (sub) {
+    sub.textContent = type === 'copyright'
+      ? 'Your copyright application is in. Save the confirmation number from copyright.gov. Your eCO number confirms your effective registration date.'
+      : 'Your provisional patent is filed. Save your USPTO Application Number — that date is your legal patent priority date. You have 12 months to file a full utility patent.';
+  }
+  // Save to journal
+  chrome.storage.local.get(['ppc_journal'], function(res) {
+    var journal = res.ppc_journal || [];
+    journal.push({
+      id:        'filing-' + Date.now(),
+      timestamp: Date.now(),
+      category:  4,
+      trigger:   type === 'copyright' ? 'copyright_filing' : 'provisional_filing',
+      answer:    type === 'copyright'
+        ? 'Copyright application filed via Patent PreCheck filing assistant on ' + new Date().toLocaleDateString()
+        : 'Provisional patent application filed via Patent PreCheck filing assistant on ' + new Date().toLocaleDateString(),
+      scoreGain: 20,
+      tool:      'Patent PreCheck Filing',
+      url:       window.location.href,
+    });
+    chrome.storage.local.set({ ppc_journal: journal });
+  });
+  showPage('page-complete');
+}
+
+function downloadSummary() {
+  var lines = [
+    'Patent PreCheck — Filing Summary',
+    'Generated: ' + new Date().toLocaleString(),
+    '',
+    'Filing type: ' + (filingType === 'copyright' ? 'Copyright Registration (copyright.gov)' : 'Provisional Patent Application (USPTO)'),
+    '',
+  ];
+  if (filingType === 'copyright') {
+    lines.push('Title: ' + val('cr-title'));
+    lines.push('Type: '  + val('cr-work-type'));
+    lines.push('Year: '  + val('cr-year'));
+    lines.push('Author: ' + val('cr-author'));
+    lines.push('Claimant: ' + val('cr-claimant'));
+  } else {
+    lines.push('Title: '    + val('pr-title'));
+    lines.push('Inventor: ' + val('pr-inventor-name'));
+    lines.push('Address: '  + val('pr-inventor-address'));
+    if (window._provisionalDoc) {
+      lines.push('');
+      lines.push('=== FULL APPLICATION TEXT ===');
+      lines.push('');
+      lines.push(window._provisionalDoc);
+    }
+  }
+  var blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'patent-precheck-filing-summary-' + Date.now() + '.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Pre-fill from session data ─────────────────────────────────────────────
+function prefillCopyright() {
+  var d = sessionData;
+  setVal('cr-year', new Date().getFullYear());
+  if (d.sessionTitle) setVal('cr-title', d.sessionTitle);
+  if (d.description)  setVal('cr-description', d.description);
+}
+
+function prefillProvisional() {
+  var d = sessionData;
+  if (d.sessionTitle) setVal('pr-title', 'System and Method for ' + d.sessionTitle);
+  if (d.background)   setVal('pr-background', d.background);
+  if (d.summary)      setVal('pr-summary', d.summary);
+  if (d.fieldText)    setVal('pr-field', d.fieldText);
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function val(id) {
+  var el = document.getElementById(id);
+  return el ? el.value.trim() : '';
+}
+function setVal(id, v) {
+  var el = document.getElementById(id);
+  if (el && !el.value) el.value = v;
+}
+function row(label, value) {
+  return '<div style="margin-bottom:7px"><span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em">' +
+    label + '</span><div style="font-size:12px;color:#111;margin-top:2px">' + (value || '<em style="color:#9ca3af">Not filled in</em>') + '</div></div>';
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  // Load session data to use for pre-fill
+  chrome.storage.local.get(['ppc_score', 'ppc_journal', 'ppc_session_title', 'ppc_disclaimer_accepted'], function(res) {
+    var score   = res.ppc_score   || {};
+    var journal = res.ppc_journal || [];
+
+    // Build pre-fill data from journal entries
+    var conceptionEntries = journal.filter(function(e) { return e.trigger === 'conception' || e.trigger === 'strong'; });
+    var wrapEntry         = journal.find(function(e)  { return e.trigger === 'wrap'; });
+
+    sessionData.score        = score;
+    sessionData.journal      = journal;
+    sessionData.sessionTitle = res.ppc_session_title || '';
+    sessionData.description  = conceptionEntries.map(function(e) { return e.answer; }).join('\n\n') || '';
+    sessionData.summary      = wrapEntry ? wrapEntry.answer : (conceptionEntries.length ? conceptionEntries[0].answer : '');
+    sessionData.background   = '';
+    sessionData.fieldText    = '';
+
+    // Try to get live data from the active AI tool tab
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }, function(tabs) {
+      if (!tabs || !tabs[0]) return;
+      chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_STATE' }, function(state) {
+        if (chrome.runtime.lastError || !state) return;
+        sessionData.tool = state.tool || 'AI Tool';
+      });
+    });
+  });
+});
+
+
+// ── CSP-safe event wiring ────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  function on(id, evt, fn) {
+    var el = document.getElementById(id); if (el) el.addEventListener(evt, fn);
+  }
+  // Disclaimer
+  on('disclaimer-check', 'change', function() { onCheck(this); });
+  on('btn-proceed', 'click', proceedFromDisclaimer);
+  // Path chooser help
+  document.addEventListener('click', function(e) {
+    if (e.target.id === 'help-toggle' || e.target.closest('#help-toggle')) toggleHelp();
+  });
+  // Account confirms
+  document.addEventListener('click', function(e) {
+    var row = e.target.closest('.account-done-row');
+    if (row) {
+      var rowId = row.id, chkId = rowId.replace('-row','-check'), nextId = rowId.replace('-row','').replace('acct','').replace('pr-account','pr-next-1').replace('cr-account','cr-next-1');
+      toggleAccountDone(rowId, chkId, nextId);
+    }
+  });
+});
+
+
+
+============================================================
+FILE: dashboard/copyright.js
+DESCRIPTION: COPYRIGHT WIZARD SCRIPT
+LINES: 373
+============================================================
+
+// ── State ──────────────────────────────────────────────────────────────────
+var currentStep = 0;
+var formData = {};
+var STEPS = 6;
+
+// ── Disclaimer ────────────────────────────────────────────────────────────
+function onDiscCheck(cb) {
+  var row = document.getElementById('chk-row');
+  var btn = document.getElementById('btn-go');
+  row.classList.toggle('on', cb.checked);
+  btn.classList.toggle('on', cb.checked);
+  btn.disabled = !cb.checked;
+  // Make the transition unmistakable
+  if (cb.checked) {
+    btn.textContent = 'I understand — let\'s file →';
+    btn.style.transform = 'scale(1.02)';
+    setTimeout(function() { btn.style.transform = ''; }, 200);
+  } else {
+    btn.textContent = 'I understand — let\'s file →';
+  }
+}
+
+function startWizard() {
+  if (!document.getElementById('disc-chk').checked) return;
+  chrome.storage.local.set({ ppc_cr_disclaimer: Date.now() });
+  document.getElementById('overlay').style.display = 'none';
+  // Load saved progress
+  chrome.storage.local.get(['ppc_cr_form', 'ppc_score', 'ppc_journal'], function(res) {
+    if (res.ppc_cr_form && Object.keys(res.ppc_cr_form).length > 0) {
+      formData = res.ppc_cr_form;
+      restoreForm();
+      // Show resume banner
+      var rb = document.getElementById('resume-banner');
+      var rbb = document.getElementById('btn-resume');
+      if (rb) rb.style.display = 'flex';
+      if (rbb) rbb.style.display = 'block';
+    }
+    // Pre-fill from session
+    if (!formData['f-year']) setField('f-year', new Date().getFullYear());
+    if (!formData['f-worktype']) setField('f-worktype', 'Literary Work');
+    if (!formData['f-published']) setField('f-published', 'No');
+    if (!formData['f-forhire']) setField('f-forhire', 'No');
+    if (!formData['f-transfer']) setField('f-transfer', 'none');
+    if (!formData['f-domicile']) setField('f-domicile', 'United States');
+    showPg('pg-intro');
+  });
+}
+
+function goBack() {
+  window.history.back();
+}
+
+// ── Page routing ──────────────────────────────────────────────────────────
+function showPg(id) {
+  ['pg-intro','pg-wizard','pg-complete'].forEach(function(p) {
+    document.getElementById(p).style.display = p === id ? 'block' : 'none';
+  });
+  window.scrollTo(0,0);
+}
+
+// ── Step navigation ───────────────────────────────────────────────────────
+function goStep(n) {
+  currentStep = n;
+  // Hide all steps
+  for (var i = 1; i <= STEPS; i++) {
+    var el = document.getElementById('s' + i);
+    if (el) el.style.display = i === n ? 'block' : 'none';
+  }
+  // Update progress
+  var pct = Math.round(((n - 1) / STEPS) * 100);
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('step-pct').textContent = pct + '%';
+  document.getElementById('step-title').textContent = 'Step ' + n + ' of ' + STEPS;
+  // Update circles
+  for (var i = 1; i <= STEPS; i++) {
+    var sc = document.getElementById('sc-' + i);
+    var sl = document.getElementById('sl-' + i);
+    sc.className = 'step-circle' + (i < n ? ' done' : i === n ? ' active' : '');
+    sl.className = 'step-lbl' + (i < n ? ' done' : i === n ? ' active' : '');
+    if (i < STEPS) {
+      var ln = document.getElementById('ln-' + i);
+      ln.className = 'step-line' + (i < n ? ' done' : '');
+    }
+  }
+  if (n === 6) buildReview();
+  showPg('pg-wizard');
+  window.scrollTo(0,0);
+}
+
+// ── Account confirm ───────────────────────────────────────────────────────
+function toggleAcct() {
+  var chk = document.getElementById('acct-chk');
+  var row = document.getElementById('acct-confirm');
+  var btn = document.getElementById('s1-next');
+  chk.checked = !chk.checked;
+  row.classList.toggle('on', chk.checked);
+  btn.disabled = !chk.checked;
+}
+
+// ── Pub change ────────────────────────────────────────────────────────────
+function onPubChange() {
+  var v = document.getElementById('f-published').value;
+  document.getElementById('pub-fields').style.display = v === 'Yes' ? 'block' : 'none';
+}
+
+function onTransferChange() {}
+
+// ── Deposit selection ─────────────────────────────────────────────────────
+function selectDeposit(n) {
+  [1, 2].forEach(function(i) {
+    document.getElementById('dep-opt-' + i).classList.toggle('on', i === n);
+  });
+  formData['deposit-type'] = n;
+}
+
+// ── Save to storage ───────────────────────────────────────────────────────
+function save() {
+  var ids = ['f-worktype','f-title','f-published','f-pubdate','f-pubnation','f-year','f-author','f-domicile','f-birthyear','f-forhire','f-authorship','f-claimant','f-claimant-address','f-transfer','f-confirmation'];
+  ids.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) formData[id] = el.value;
+  });
+  chrome.storage.local.set({ ppc_cr_form: formData });
+  // Update the in-wizard save time
+  var st = document.getElementById('save-time');
+  if (st) {
+    var now = new Date();
+    st.textContent = 'Last saved ' + now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  }
+  var ind = document.getElementById('save-ind');
+  ind.classList.add('show');
+  setTimeout(function() { ind.classList.remove('show'); }, 1500);
+}
+
+function resumeProgress() {
+  // Find the highest step that has data and go there
+  var step = 1;
+  if (formData['f-worktype'] || formData['f-title']) step = 2;
+  if (formData['f-published'] !== undefined && formData['f-year']) step = 3;
+  if (formData['f-author']) step = 4;
+  if (formData['f-claimant']) step = 5;
+  if (formData['f-confirmation']) step = 6;
+  goStep(step);
+}
+
+function restoreForm() {
+  Object.keys(formData).forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.value = formData[id];
+  });
+  onPubChange();
+}
+
+function setField(id, val) {
+  var el = document.getElementById(id);
+  if (el && !el.value) el.value = val;
+}
+
+// ── Review ────────────────────────────────────────────────────────────────
+function buildReview() {
+  save();
+  var sections = [
+    { title: 'Type of work', rows: [
+      { label: 'Type of Work', id: 'f-worktype' },
+      { label: 'Title of Work', id: 'f-title' },
+    ]},
+    { title: 'Publication', rows: [
+      { label: 'Published?', id: 'f-published' },
+      { label: 'Year of Completion', id: 'f-year' },
+      { label: 'Date of Publication', id: 'f-pubdate' },
+    ]},
+    { title: 'Author', rows: [
+      { label: 'Author Name', id: 'f-author' },
+      { label: 'Domicile', id: 'f-domicile' },
+      { label: 'Year of Birth', id: 'f-birthyear' },
+      { label: 'Work for Hire', id: 'f-forhire' },
+      { label: 'Nature of Authorship', id: 'f-authorship' },
+    ]},
+    { title: 'Claimant', rows: [
+      { label: 'Claimant', id: 'f-claimant' },
+      { label: 'Address', id: 'f-claimant-address' },
+      { label: 'Transfer', id: 'f-transfer' },
+    ]},
+  ];
+
+  var html = '';
+  sections.forEach(function(sec) {
+    html += '<div class="review-section"><div class="review-section-title">' + sec.title + '</div>';
+    sec.rows.forEach(function(r) {
+      var val = formData[r.id] || '';
+      html += '<div class="review-row"><div class="review-label">' + r.label + '</div><div class="review-value' + (val ? '' : ' empty') + '">' + (val || 'Not filled in — go back and complete') + '</div></div>';
+    });
+    html += '</div>';
+  });
+  document.getElementById('review-content').innerHTML = html;
+}
+
+// ── Copy blocks ───────────────────────────────────────────────────────────
+function copyBlock(id, btn) {
+  var text = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(text).then(function() {
+    btn.textContent = 'Copied ✓';
+    btn.classList.add('copied');
+    setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+// ── Complete ──────────────────────────────────────────────────────────────
+function completeFiling() {
+  save();
+  // Save to evidence journal
+  chrome.storage.local.get(['ppc_journal'], function(res) {
+    var j = res.ppc_journal || [];
+    j.push({
+      id: 'cr-' + Date.now(),
+      timestamp: Date.now(),
+      category: 4,
+      trigger: 'copyright_registration',
+      answer: 'Copyright registration filed with US Copyright Office for "' + (formData['f-title'] || 'Patent PreCheck') + '". Service request: ' + (formData['f-confirmation'] || 'pending') + '. Filed: ' + new Date().toLocaleDateString() + '.',
+      scoreGain: 20,
+      tool: 'Patent PreCheck Filing Wizard',
+      url: window.location.href,
+    });
+    chrome.storage.local.set({ ppc_journal: j, ppc_cr_complete: Date.now() });
+  });
+  showPg('pg-complete');
+}
+
+function downloadSummary() {
+  var lines = [
+    'Patent PreCheck — Copyright Registration Summary',
+    'Generated: ' + new Date().toLocaleString(),
+    '',
+    'FILED WITH: US Copyright Office (copyright.gov eCO)',
+    'EFFECTIVE DATE: ' + new Date().toLocaleDateString(),
+    '',
+    '=== APPLICATION DETAILS ===',
+    '',
+    'Type of Work: '       + (formData['f-worktype'] || ''),
+    'Title: '              + (formData['f-title'] || ''),
+    'Year of Completion: ' + (formData['f-year'] || ''),
+    'Published: '          + (formData['f-published'] || ''),
+    '',
+    'Author: '             + (formData['f-author'] || ''),
+    'Domicile: '           + (formData['f-domicile'] || ''),
+    'Work for Hire: '      + (formData['f-forhire'] || ''),
+    'Nature of Authorship: ' + (formData['f-authorship'] || ''),
+    '',
+    'Claimant: '           + (formData['f-claimant'] || ''),
+    'Address: '            + (formData['f-claimant-address'] || ''),
+    '',
+    'Service Request #: '  + (formData['f-confirmation'] || 'Not yet entered'),
+    '',
+    '---',
+    'Prepared with Patent PreCheck · patentprecheck.com',
+    'Patent PreCheck is not a law firm and does not provide legal advice.',
+  ];
+  var blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'patent-precheck-copyright-' + Date.now() + '.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Gentle leave reminder ────────────────────────────────────────────────
+window.addEventListener('beforeunload', function(e) {
+  // Only show if mid-wizard and has unsaved data
+  if (currentStep > 0 && Object.keys(formData).length > 0) {
+    // Modern browsers show their own generic message — we just trigger it
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  // Check if disclaimer already accepted this session
+  chrome.storage.local.get(['ppc_cr_disclaimer'], function(res) {
+    if (res.ppc_cr_disclaimer) {
+      // Accepted recently — check if within last 24h
+      var age = Date.now() - (res.ppc_cr_disclaimer || 0);
+      if (age < 24 * 60 * 60 * 1000) {
+        // Skip disclaimer, go straight to wizard
+        document.getElementById('overlay').style.display = 'none';
+        startWizard();
+        return;
+      }
+    }
+    // Show disclaimer
+    document.getElementById('overlay').style.display = 'flex';
+  });
+});
+
+// ── Wire all event listeners (replaces inline handlers removed for CSP) ───
+document.addEventListener('DOMContentLoaded', function() {
+  function on(id, evt, fn) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener(evt, fn);
+  }
+  function onAll(sel, evt, fn) {
+    document.querySelectorAll(sel).forEach(function(el) { el.addEventListener(evt, fn); });
+  }
+
+  // Disclaimer
+  on('chk-row', 'click', function() {
+    var c = document.getElementById('disc-chk');
+    setTimeout(function() { onDiscCheck(c); }, 10);
+  });
+  on('disc-chk', 'change', function() { onDiscCheck(this); });
+  on('btn-go', 'click', startWizard);
+  on('btn-resume', 'click', resumeProgress);
+
+  // Account step
+  on('acct-confirm', 'click', toggleAcct);
+  on('acct-chk', 'click', function(e) { e.stopPropagation(); });
+  on('s1-next', 'click', function() { goStep(2); });
+
+  // Step 2 — work type
+  on('f-worktype', 'change', save);
+  on('f-title', 'change', save);
+  on('f-title', 'input', save);
+
+  // Step 3 — publication
+  on('f-published', 'change', function() { onPubChange(); save(); });
+  on('f-pubdate', 'change', save);
+  on('f-pubnation', 'change', save);
+  on('f-year', 'change', save);
+  on('f-year', 'input', save);
+
+  // Step 4 — authorship
+  on('f-author', 'change', save);
+  on('f-author', 'input', save);
+  on('f-domicile', 'change', save);
+  on('f-domicile', 'input', save);
+  on('f-birthyear', 'change', save);
+  on('f-birthyear', 'input', save);
+  on('f-forhire', 'change', save);
+  on('f-authorship', 'change', save);
+  on('f-authorship', 'input', save);
+
+  // Step 5 — claimant & deposit
+  on('f-claimant', 'change', save);
+  on('f-claimant', 'input', save);
+  on('f-claimant-address', 'change', save);
+  on('f-claimant-address', 'input', save);
+  on('f-transfer', 'change', function() { onTransferChange(); save(); });
+  on('dep-opt-1', 'click', function() { selectDeposit(1); });
+  on('dep-opt-2', 'click', function() { selectDeposit(2); });
+
+  // Step 6 — confirmation
+  on('f-confirmation', 'change', save);
+  on('f-confirmation', 'input', save);
+
+  // Intro start button
+  on('btn-start-main', 'click', function() { goStep(1); });
+
+  // Step nav buttons — wire by class since they're dynamic
+  // (goStep calls are in renderStep which re-creates DOM, so we use event delegation)
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-step]');
+    if (btn) {
+      var step = parseInt(btn.getAttribute('data-step'));
+      if (!isNaN(step)) goStep(step);
+    }
+    var copyBtn = e.target.closest('[data-copy]');
+    if (copyBtn) {
+      var srcId = copyBtn.getAttribute('data-copy');
+      copyBlock(srcId, copyBtn);
+    }
+  });
+});
+
+
+
+============================================================
+FILE: dashboard/copyright_edu.js
+DESCRIPTION: COPYRIGHT EDUCATION SCRIPT
+LINES: 94
+============================================================
+
+var selected = new Set();
+
+var items = {
+  'item-code':   { label: 'Source code (content.js, background.js, popup.js, dashboard.js, filing.js, eco_autofill.js)', icon: '💻' },
+  'item-ui':     { label: 'User interface text and copy (labels, prompts, descriptions)', icon: '✍️' },
+  'item-algo':   { label: 'Documentation and algorithm descriptions (IDF, spec, README)', icon: '📄' },
+  'item-design': { label: 'UI visual design and layout (dashboard, panel, score ring)', icon: '🎨' },
+};
+
+function toggle(id) {
+  var card = document.getElementById(id);
+  var chk  = document.getElementById('chk-' + id.replace('item-',''));
+  var svg  = document.getElementById('chk-' + id.replace('item-','') + '-svg');
+
+  if (selected.has(id)) {
+    selected.delete(id);
+    card.classList.remove('selected');
+    chk.style.background = '#fff';
+    chk.style.borderColor = '#e5e7eb';
+    if (svg) svg.style.display = 'none';
+  } else {
+    selected.add(id);
+    card.classList.add('selected');
+    chk.style.background = '#1D9E75';
+    chk.style.borderColor = '#1D9E75';
+    if (svg) svg.style.display = 'block';
+  }
+  updateSummary();
+}
+
+function updateSummary() {
+  var sumBox  = document.getElementById('selection-summary');
+  var sumItems = document.getElementById('summary-items');
+  var ctaSel  = document.getElementById('cta-selection');
+  var ctaItems = document.getElementById('cta-items');
+
+  if (selected.size === 0) {
+    sumBox.style.display = 'none';
+    ctaSel.style.display = 'none';
+    return;
+  }
+
+  sumBox.style.display = 'block';
+  ctaSel.style.display = 'block';
+
+  var html = '';
+  var ctaHtml = '';
+  selected.forEach(function(id) {
+    var item = items[id];
+    if (!item) return;
+    html += '<div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#374151">' +
+      '<span style="color:#1D9E75;flex-shrink:0">✓</span>' +
+      '<span>' + item.label + '</span>' +
+    '</div>';
+    ctaHtml += '<div class="cta-item"><span>' + item.icon + '</span><span>' + item.label + '</span></div>';
+  });
+  sumItems.innerHTML = html;
+  ctaItems.innerHTML = ctaHtml;
+
+  // Save selection to storage for wizard to use
+  try {
+    chrome.storage.local.set({ ppc_cr_selected_items: Array.from(selected) });
+  } catch(e) {}
+}
+
+function toggleFaq(el) {
+  el.classList.toggle('open');
+}
+
+// Pre-select source code and UI text as defaults (most common case)
+document.addEventListener('DOMContentLoaded', function() {
+  toggle('item-code');
+  toggle('item-ui');
+  toggle('item-algo');
+});
+
+// ── CSP-safe event wiring ────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  // Pre-select default items
+  toggle('item-code');
+  toggle('item-ui');
+  toggle('item-algo');
+
+  // FAQ toggles
+  document.querySelectorAll('.faq-item').forEach(function(el) {
+    el.addEventListener('click', function() { toggleFaq(this); });
+  });
+
+  // Checklist toggles
+  ['item-code','item-ui','item-algo','item-design'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('click', function() { toggle(id); });
+  });
+});
+
+
+
+============================================================
+END OF DEPOSIT COPY
+Total lines of code: 2397
+============================================================

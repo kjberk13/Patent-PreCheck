@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+package-lock.json.bak
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Mac
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build
+dist/
+build/
+.next/
+.cache/
+
+# Netlify
+.netlify/
+
+# Vector store data (local dev)
+pgdata/
+embeddings_cache/
+
+# OS
+Thumbs.db

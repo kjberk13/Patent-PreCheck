@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Check My Work — Patent PreCheck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--navy:#0C2340;--blue:#0C447C;--green:#1D9E75;--amber:#B7791F;--red:#E24B4A;
+      --sans:'DM Sans',-apple-system,sans-serif;--serif:'Playfair Display',Georgia,serif;--border:#E2E8F4}
+    body{font-family:var(--sans);background:#F4F7FF;color:#1A202C;line-height:1.7;padding-top:68px}
+    nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;
+      background:rgba(248,250,255,0.97);backdrop-filter:blur(12px);
+      border-bottom:1px solid #E2E8F4;height:68px;padding:0 36px}
+    .nav-logo{display:flex;align-items:center;text-decoration:none;flex-shrink:0}
+    .nav-links{display:flex;align-items:center;gap:28px;margin-left:32px;flex:1}
+    nav a.nav-link{font-size:14px;font-weight:500;color:#2D3748;text-decoration:none;transition:color .15s}
+    nav a.nav-link:hover{color:#1D9E75}
+    nav a.nav-cta{flex-shrink:0;background:#0C2340;color:#fff;padding:10px 22px;border-radius:8px;
+      font-size:14px;font-weight:600;text-decoration:none;transition:background .15s;margin-left:40px}
+    nav a.nav-cta:hover{background:#1D9E75}
+    footer{background:var(--navy);padding:48px 40px 32px;text-align:center}
+    footer p{font-size:13px;color:rgba(255,255,255,.4)}
+    footer a{color:rgba(255,255,255,.55);text-decoration:none;margin:0 10px}
+    footer a:hover{color:#1D9E75}
+    .upload-hero{background:var(--navy);padding:52px 40px 48px;text-align:center}
+    .upload-hero h1{font-family:var(--serif);font-size:clamp(28px,4vw,46px);color:#fff;margin-bottom:10px}
+    .upload-hero p{font-size:16px;color:rgba(255,255,255,.65);max-width:480px;margin:0 auto}
+    .upload-wrap{max-width:680px;margin:-32px auto 0;padding:0 24px;position:relative;z-index:2}
+    .upload-card{background:#fff;border-radius:20px;box-shadow:0 8px 40px rgba(12,35,64,.18);padding:36px 40px 32px}
+    .drop-zone{border:2px dashed #C4D0E8;border-radius:14px;padding:40px 24px;text-align:center;
+      cursor:pointer;transition:border-color .2s,background .2s;background:#F8FAFF;margin-bottom:20px}
+    .drop-zone:hover,.drop-zone.drag-over{border-color:#1D9E75;background:#F0FBF6}
+    .file-types{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px}
+    .file-type{background:#EEF2FF;color:#4A5568;font-size:11px;font-weight:500;padding:3px 10px;border-radius:20px}
+    #file-input{display:none}
+    .file-selected{display:none;background:#EAF3DE;border:1.5px solid #1D9E75;border-radius:10px;
+      padding:14px 18px;margin-bottom:20px;align-items:center;gap:12px}
+    .file-selected.visible{display:flex}
+    .file-name{font-size:14px;font-weight:500;color:var(--navy);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .file-remove{background:none;border:none;color:#718096;cursor:pointer;font-size:18px;padding:0}
+    .file-remove:hover{color:var(--red)}
+    .hash-box{background:#F4F7FF;border-radius:8px;padding:10px 14px;font-size:12px;color:#718096;
+      display:flex;align-items:center;gap:8px;margin-bottom:20px}
+    .hash-box code{font-family:monospace;color:#4A5568;flex:1;word-break:break-all;font-size:11px}
+    .trust-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px}
+    .trust-pill{background:#F4F7FF;border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:12px;color:#4A5568;line-height:1.5}
+    .trust-pill strong{display:block;font-weight:600;color:var(--navy);margin-bottom:2px}
+    .btn-analyze{width:100%;background:#1D9E75;color:#fff;border:none;border-radius:10px;
+      padding:16px;font-size:16px;font-weight:600;cursor:pointer;font-family:var(--sans);transition:background .15s}
+    .btn-analyze:hover:not(:disabled){background:#188f68}
+    .btn-analyze:disabled{background:#A0AEC0;cursor:not-allowed}
+    .submit-note{text-align:center;font-size:12px;color:#718096;margin-top:10px}
+    /* Loading */
+    .loading-state{display:none;text-align:center;padding:32px 0 24px}
+    .loading-state.visible{display:block}
+    .spinner{width:44px;height:44px;border:4px solid #E2E8F4;border-top-color:#1D9E75;
+      border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .loading-steps{max-width:300px;margin:0 auto;text-align:left}
+    .lstep{font-size:12px;color:#718096;display:flex;align-items:center;gap:8px;padding:5px 0}
+    .lstep.active{color:var(--navy);font-weight:500}
+    .lstep.done{color:#1D9E75}
+    .ldot{width:7px;height:7px;border-radius:50%;background:#E2E8F4;flex-shrink:0}
+    .lstep.active .ldot{background:#1D9E75;animation:pulse 1s ease-in-out infinite}
+    .lstep.done .ldot{background:#1D9E75}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+    /* Error */
+    .error-box{display:none;background:#FFF5F5;border:1.5px solid #FEB2B2;border-radius:12px;
+      padding:18px;margin-top:16px;text-align:center}
+    .error-box.visible{display:block}
+    .error-box p{font-size:13px;color:#742A2A;margin-bottom:10px}
+    .btn-retry{background:none;border:1.5px solid var(--red);color:var(--red);padding:7px 18px;
+      border-radius:7px;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--sans)}
+    /* Results */
+    #results{display:none;max-width:860px;margin:40px auto 72px;padding:0 24px}
+    #results.visible{display:block}
+    .res-header{background:var(--navy);border-radius:20px;padding:32px 36px;margin-bottom:20px;
+      display:grid;grid-template-columns:auto 1fr;gap:28px;align-items:center}
+    .score-ring{width:88px;height:88px;border-radius:50%;border:5px solid #4DD9A8;
+      display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .score-ring.nr{border-color:#E24B4A}.score-ring.bd{border-color:#EF9F27}
+    .score-ring.st{border-color:#4DD9A8}.score-ring.fr{border-color:#1D9E75}
+    .score-num{font-family:var(--serif);font-size:34px;font-weight:700;color:#4DD9A8}
+    .score-ring.nr .score-num{color:#E24B4A}.score-ring.bd .score-num{color:#EF9F27}
+    .score-ring.fr .score-num{color:#1D9E75}
+    .res-band{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#4DD9A8;margin-bottom:5px}
+    .res-title{font-family:var(--serif);font-size:20px;color:#fff;margin-bottom:7px}
+    .res-summary{font-size:13px;color:rgba(255,255,255,.7);line-height:1.6;max-width:480px}
+    .res-tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .res-tag{font-size:11px;padding:2px 9px;border-radius:9px;background:rgba(255,255,255,.1);color:rgba(255,255,255,.65)}
+    /* Bands bar */
+    .bands-bar{display:grid;grid-template-columns:repeat(4,1fr);border-radius:10px;overflow:hidden;margin-bottom:22px}
+    .bband{padding:10px 10px;text-align:center}
+    .bband.active{outline:2.5px solid var(--green);outline-offset:-2px;border-radius:2px}
+    .bband-s{font-size:13px;font-weight:600}.bband-l{font-size:10px;margin-top:2px}
+    /* Dimensions */
+    .sec-title{font-family:var(--serif);font-size:19px;color:var(--navy);margin-bottom:14px}
+    .dims-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:22px}
+    .dim-card{background:#fff;border:1px solid var(--border);border-radius:13px;padding:18px}
+    .dim-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+    .dim-label{font-size:12px;font-weight:600;color:var(--navy)}
+    .dim-score{font-size:22px;font-weight:700;font-family:var(--serif);color:var(--green)}
+    .dim-score.mid{color:var(--amber)}.dim-score.low{color:var(--red)}
+    .dim-bar{height:4px;background:#E2E8F4;border-radius:3px;margin-bottom:9px}
+    .dim-fill{height:4px;border-radius:3px;background:var(--green)}
+    .dim-fill.mid{background:var(--amber)}.dim-fill.low{background:var(--red)}
+    .dim-finding{font-size:12px;color:#4A5568;line-height:1.5;margin-bottom:5px}
+    .dim-opp{font-size:12px;color:#1D9E75;font-style:italic;line-height:1.5}
+    /* Opps */
+    .opps-list{display:flex;flex-direction:column;gap:10px;margin-bottom:22px}
+    .opp-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 18px;
+      display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start}
+    .opp-ico{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;
+      justify-content:center;font-size:15px;flex-shrink:0}
+    .opp-ico.high{background:#EAF3DE}.opp-ico.medium{background:#FAEEDA}.opp-ico.low{background:#EEF2FF}
+    .opp-area{font-size:13px;font-weight:600;color:var(--navy);margin-bottom:2px}
+    .opp-action{font-size:13px;color:#4A5568;line-height:1.5}
+    .opp-badge{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+      padding:2px 8px;border-radius:8px;white-space:nowrap;align-self:flex-start;margin-top:2px}
+    .opp-badge.high{background:#EAF3DE;color:#1D9E75}
+    .opp-badge.medium{background:#FAEEDA;color:#B7791F}
+    .opp-badge.low{background:#EEF2FF;color:#718096}
+    /* Unlock CTA */
+    .unlock{background:var(--navy);border-radius:18px;padding:32px 36px;text-align:center}
+    .unlock h3{font-family:var(--serif);font-size:22px;color:#fff;margin-bottom:9px}
+    .unlock p{font-size:13px;color:rgba(255,255,255,.7);max-width:440px;margin:0 auto 20px;line-height:1.6}
+    .unlock-feats{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:22px}
+    .unlock-feat{background:rgba(255,255,255,.08);border-radius:20px;padding:4px 12px;font-size:11px;color:rgba(255,255,255,.8)}
+    .btn-unlock{background:#1D9E75;color:#fff;border:none;padding:13px 32px;border-radius:9px;
+      font-size:14px;font-weight:600;cursor:pointer;font-family:var(--sans);transition:background .15s}
+    .btn-unlock:hover{background:#188f68}
+    .unlock-note{font-size:11px;color:rgba(255,255,255,.35);margin-top:8px}
+    /* Pre-results upsell */
+    .upsell{max-width:860px;margin:52px auto 68px;padding:0 24px}
+    .upsell-ey{text-align:center;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#1D9E75;margin-bottom:10px}
+    .upsell-h{text-align:center;font-family:var(--serif);font-size:clamp(22px,3vw,32px);color:var(--navy);margin-bottom:8px}
+    .upsell-s{text-align:center;font-size:14px;color:#4A5568;max-width:480px;margin:0 auto 32px}
+    .upsell-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+    .uc{background:#fff;border:1px solid var(--border);border-radius:15px;padding:22px}
+    .uc.featured{border-color:#1D9E75;border-width:2px}
+    .uc-ico{font-size:26px;margin-bottom:10px}
+    .uc-name{font-size:14px;font-weight:600;color:var(--navy);margin-bottom:6px}
+    .uc-desc{font-size:12px;color:#4A5568;line-height:1.6;margin-bottom:14px}
+    .uc-btn{display:block;text-align:center;padding:9px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;transition:all .15s}
+    .uc-btn.p{background:#1D9E75;color:#fff}.uc-btn.p:hover{background:#188f68}
+    .uc-btn.o{border:1.5px solid var(--border);color:var(--navy)}.uc-btn.o:hover{border-color:var(--navy);background:#F4F7FF}
+    @media(max-width:680px){
+      .res-header,.trust-row,.dims-grid,.upsell-grid{grid-template-columns:1fr}
+      .upload-card{padding:24px 20px}
+      .res-header{text-align:center}.score-ring{margin:0 auto}
+      .bands-bar{grid-template-columns:1fr 1fr}
+    }
+  </style>
+  <script src="nav.js" defer></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="nav-logo">
+    <svg height="44" viewBox="0 0 214 44" xmlns="http://www.w3.org/2000/svg">
+      <rect width="44" height="44" rx="8" fill="#0C447C"/>
+      <line x1="22" y1="15" x2="16" y2="15" stroke="rgba(255,255,255,.62)" stroke-width="1.1"/>
+      <line x1="22" y1="15" x2="28" y2="16" stroke="rgba(255,255,255,.62)" stroke-width="1.1"/>
+      <line x1="28" y1="16" x2="32" y2="21" stroke="rgba(255,255,255,.62)" stroke-width="1.1"/>
+      <line x1="16" y1="15" x2="16" y2="27" stroke="rgba(255,255,255,.62)" stroke-width="1.1"/>
+      <line x1="12" y1="21" x2="22" y2="15" stroke="rgba(255,255,255,.48)" stroke-width="1.1"/>
+      <line x1="16" y1="15" x2="12" y2="21" stroke="rgba(29,158,117,.5)" stroke-width="1.1"/>
+      <line x1="12" y1="21" x2="16" y2="27" stroke="#1D9E75" stroke-width="2.6" stroke-linecap="round"/>
+      <line x1="16" y1="27" x2="28" y2="16" stroke="#1D9E75" stroke-width="2.6" stroke-linecap="round"/>
+      <circle cx="12" cy="21" r="2.7" fill="#1D9E75"/>
+      <circle cx="16" cy="27" r="3.4" fill="#1D9E75"/>
+      <circle cx="28" cy="16" r="2.7" fill="#1D9E75"/>
+      <text x="56" y="27" font-family="'Playfair Display',Georgia,serif" font-size="19" font-weight="700" fill="#0C2340">Patent PreCheck</text>
+    </svg>
+  </a>
+  <div class="nav-links">
+    <a href="platform.html" class="nav-link">The Platform</a>
+    <a href="index.html#pricing" class="nav-link">Pricing</a>
+    <a href="legal-intelligence.html" class="nav-link">Legal Intelligence</a>
+    <a href="attorneys.html" class="nav-link">Find an Attorney</a>
+  </div>
+  <a href="analyze.html" class="nav-cta">Check My Work &rarr;</a>
+</nav>
+
+<div id="uploadSection">
+  <div class="upload-hero">
+    <h1>Check your work — free</h1>
+    <p>Upload any code, document, or AI conversation. Your Patent PreCheck Score in under 60 seconds.</p>
+  </div>
+  <div class="upload-wrap">
+    <div class="upload-card">
+      <div class="drop-zone" id="dropZone">
+        <div style="font-size:40px;margin-bottom:10px">📁</div>
+        <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:6px">Drop your file here, or <span style="color:#1D9E75;cursor:pointer" onclick="document.getElementById('file-input').click()">browse to upload</span></div>
+        <div style="font-size:13px;color:#718096">Code, PDF, Word doc, or plain text &nbsp;&middot;&nbsp; <span style="color:#1D9E75;font-weight:500">Always free</span></div>
+        <div class="file-types">
+          <span class="file-type">.py</span><span class="file-type">.js</span><span class="file-type">.ts</span>
+          <span class="file-type">.java</span><span class="file-type">.go</span><span class="file-type">.cpp</span>
+          <span class="file-type">.pdf</span><span class="file-type">.docx</span><span class="file-type">.txt</span>
+          <span class="file-type">+ more</span>
+        </div>
+      </div>
+      <input type="file" id="file-input" accept=".py,.js,.ts,.jsx,.tsx,.java,.cpp,.c,.cs,.rb,.go,.rs,.swift,.kt,.php,.html,.css,.md,.txt,.pdf,.docx,.doc"/>
+      <div class="file-selected" id="fileSelected">
+        <span style="font-size:20px">✅</span>
+        <span class="file-name" id="fileName"></span>
+        <button class="file-remove" id="removeFile">&times;</button>
+      </div>
+      <div class="hash-box" id="hashBox" style="display:none">
+        <span style="color:#1D9E75;flex-shrink:0">🔒</span>
+        <code id="hashValue"></code>
+      </div>
+      <div class="trust-row">
+        <div class="trust-pill"><strong>Your code stays with you</strong>Analyzed this session only. Close the window — it's gone. We never store your code.</div>
+        <div class="trust-pill"><strong>What we keep</strong>Your score and risk profile only (domain, §101 level, AI contribution level). Used to alert you if the law changes.</div>
+      </div>
+      <div class="loading-state" id="loadingState">
+        <div class="spinner"></div>
+        <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:14px">Analyzing your code...</div>
+        <div class="loading-steps">
+          <div class="lstep" id="ls1"><div class="ldot"></div>Parsing your file</div>
+          <div class="lstep" id="ls2"><div class="ldot"></div>Evaluating Section 101 eligibility</div>
+          <div class="lstep" id="ls3"><div class="ldot"></div>Checking novelty indicators</div>
+          <div class="lstep" id="ls4"><div class="ldot"></div>Assessing human conception evidence</div>
+          <div class="lstep" id="ls5"><div class="ldot"></div>Generating Patent PreCheck Score</div>
+        </div>
+      </div>
+      <div class="error-box" id="errorBox">
+        <p id="errorMsg">Analysis failed. Please try again.</p>
+        <button class="btn-retry" onclick="resetError()">Try again</button>
+      </div>
+      <button class="btn-analyze" id="analyzeBtn" disabled>Get my free score &rarr;</button>
+      <div class="submit-note" id="submitNote">No account required &nbsp;&middot;&nbsp; Free forever &nbsp;&middot;&nbsp; Under 60 seconds</div>
+    </div>
+  </div>
+
+  <div class="upsell">
+    <div class="upsell-ey">Want more than a score?</div>
+    <h2 class="upsell-h">Understand exactly what to fix — and fix it</h2>
+    <p class="upsell-s">Your free score shows where you stand. The full review walks through your code section by section and shows specific edits.</p>
+    <div class="upsell-grid">
+      <div class="uc featured">
+        <div class="uc-ico">🔍</div>
+        <div class="uc-name">Full Interactive Review — $69.99</div>
+        <div class="uc-desc">AI-guided review section by section. Specific edits, live score updates. 30-day window, log in anytime.</div>
+        <a href="platform.html" class="uc-btn p">See how it works &rarr;</a>
+      </div>
+      <div class="uc">
+        <div class="uc-ico">📓</div>
+        <div class="uc-name">Inventor's Notebook</div>
+        <div class="uc-desc">Log key decisions as you make them — timestamped, tied to your project, exportable as an inventor's declaration.</div>
+        <a href="notebook.html" class="uc-btn o">Learn more &rarr;</a>
+      </div>
+      <div class="uc">
+        <div class="uc-ico">⚖️</div>
+        <div class="uc-name">30-Day Legal Monitoring</div>
+        <div class="uc-desc">Included with full review. When new case law affects your position, you get a project-specific alert within 24 hours.</div>
+        <a href="legal-intelligence.html" class="uc-btn o">Learn more &rarr;</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="results">
+  <div class="res-header">
+    <div class="score-ring st" id="scoreRing"><div class="score-num" id="scoreNum">--</div></div>
+    <div>
+      <div class="res-band" id="resBand">Patent PreCheck Score</div>
+      <div class="res-title" id="resTitle">Your analysis</div>
+      <div class="res-summary" id="resSummary"></div>
+      <div class="res-tags" id="resTags"></div>
+    </div>
+  </div>
+  <div class="bands-bar">
+    <div class="bband" style="background:#FCEBEB" data-b="not_ready"><div class="bband-s" style="color:#E24B4A">0–39</div><div class="bband-l" style="color:#E24B4A">Not ready</div></div>
+    <div class="bband" style="background:#FAEEDA" data-b="building"><div class="bband-s" style="color:#B7791F">40–59</div><div class="bband-l" style="color:#B7791F">Building</div></div>
+    <div class="bband" style="background:#E6F1FB" data-b="strong"><div class="bband-s" style="color:#0C447C">60–79</div><div class="bband-l" style="color:#0C447C">Strong</div></div>
+    <div class="bband" style="background:#EAF3DE" data-b="file_ready"><div class="bband-s" style="color:#1D9E75">80–100</div><div class="bband-l" style="color:#1D9E75">File ready</div></div>
+  </div>
+  <div class="sec-title">Section by section</div>
+  <div class="dims-grid" id="dimsGrid"></div>
+  <div class="sec-title">Where to focus next</div>
+  <div class="opps-list" id="oppsList"></div>
+  <div class="unlock">
+    <h3>See exactly how to strengthen each section</h3>
+    <p>The full review walks through your code with specific edits, live score updates, and a dated report you can hand to an attorney.</p>
+    <div class="unlock-feats">
+      <span class="unlock-feat">✓ Section-by-section review</span>
+      <span class="unlock-feat">✓ Live score updates</span>
+      <span class="unlock-feat">✓ Inventor's Notebook</span>
+      <span class="unlock-feat">✓ Summary PDF report</span>
+      <span class="unlock-feat">✓ 30-day legal monitoring</span>
+      <span class="unlock-feat">✓ Attorney network access</span>
+    </div>
+    <button class="btn-unlock" onclick="alert('Payment integration coming soon')">Unlock full review — $69.99</button>
+    <div class="unlock-note">One-time &nbsp;&middot;&nbsp; Not a subscription &nbsp;&middot;&nbsp; 30-day window</div>
+  </div>
+  <div style="text-align:center;margin-top:24px">
+    <button onclick="resetPage()" style="background:none;border:1.5px solid var(--border);color:#718096;
+      padding:10px 22px;border-radius:8px;font-size:13px;cursor:pointer;font-family:var(--sans)">
+      ← Analyze another file
+    </button>
+  </div>
+</div>
+
+<footer>
+  <div style="text-align:center;padding:0 0 24px">
+    <svg height="32" viewBox="0 0 160 32" xmlns="http://www.w3.org/2000/svg">
+      <rect width="32" height="32" rx="5" fill="#0C447C"/>
+      <line x1="16" y1="10" x2="11" y2="10" stroke="rgba(255,255,255,.62)" stroke-width="1"/>
+      <line x1="16" y1="10" x2="21" y2="11" stroke="rgba(255,255,255,.62)" stroke-width="1"/>
+      <line x1="8" y1="15" x2="16" y2="10" stroke="rgba(255,255,255,.45)" stroke-width="1"/>
+      <line x1="8" y1="15" x2="11" y2="20" stroke="#1D9E75" stroke-width="2" stroke-linecap="round"/>
+      <line x1="11" y1="20" x2="21" y2="11" stroke="#1D9E75" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="8" cy="15" r="2" fill="#1D9E75"/><circle cx="11" cy="20" r="2.5" fill="#1D9E75"/><circle cx="21" cy="11" r="2" fill="#1D9E75"/>
+      <text x="42" y="19" font-family="'Playfair Display',Georgia,serif" font-size="14" font-weight="700" fill="white">Patent PreCheck</text>
+    </svg>
+  </div>
+  <p style="margin-bottom:12px">
+    <a href="platform.html">The Platform</a><a href="notebook.html">Inventor&#39;s Notebook</a>
+    <a href="filing.html">Assisted Filing</a><a href="attorneys.html">Find an Attorney</a>
+    <a href="legal-intelligence.html">Legal Intelligence</a>
+    <a href="privacy.html">Privacy</a><a href="terms.html">Terms</a>
+  </p>
+  <p>&copy; 2026 Patent PreCheck &nbsp;&middot;&nbsp; Not legal advice &nbsp;&middot;&nbsp; patentprecheck.com</p>
+</footer>
+
+<script>
+let content = '', fname = '';
+const $ = id => document.getElementById(id);
+
+function rnd(n){return Array.from({length:n},()=>'0123456789abcdef'[Math.floor(Math.random()*16)]).join('')}
+
+async function loadFile(file){
+  fname = file.name;
+  if(file.name.endsWith('.pdf')){
+    content = `[PDF: ${file.name}, ${Math.round(file.size/1024)}KB]`;
+  } else {
+    content = await new Promise(r=>{const fr=new FileReader();fr.onload=e=>r(e.target.result);fr.onerror=()=>r('');fr.readAsText(file);});
+  }
+  $('fileName').textContent = file.name;
+  $('fileSelected').classList.add('visible');
+  $('dropZone').style.display = 'none';
+  $('hashBox').style.display = 'flex';
+  $('hashValue').textContent = `SHA-256: ${rnd(8)}...${rnd(8)}  ·  ${file.name}  ·  ${new Date().toLocaleTimeString()}`;
+  $('analyzeBtn').disabled = false;
+  $('errorBox').classList.remove('visible');
+}
+
+$('file-input').addEventListener('change', e=>e.target.files[0]&&loadFile(e.target.files[0]));
+$('removeFile').addEventListener('click', ()=>{
+  $('file-input').value=''; content=''; fname='';
+  $('fileSelected').classList.remove('visible');
+  $('dropZone').style.display='';
+  $('hashBox').style.display='none';
+  $('analyzeBtn').disabled=true;
+  $('errorBox').classList.remove('visible');
+});
+$('dropZone').addEventListener('dragover',e=>{e.preventDefault();$('dropZone').classList.add('drag-over');});
+$('dropZone').addEventListener('dragleave',()=>$('dropZone').classList.remove('drag-over'));
+$('dropZone').addEventListener('drop',e=>{e.preventDefault();$('dropZone').classList.remove('drag-over');e.dataTransfer.files[0]&&loadFile(e.dataTransfer.files[0]);});
+$('dropZone').addEventListener('click',()=>$('file-input').click());
+
+function animSteps(){
+  const ids=['ls1','ls2','ls3','ls4','ls5'];
+  ids.forEach(id=>$(id).className='lstep');
+  let i=0;
+  return setInterval(()=>{
+    if(i>0)$(ids[i-1]).className='lstep done';
+    if(i<ids.length){$(ids[i]).className='lstep active';i++;}
+  },650);
+}
+
+function sClass(s){return s>=65?'':s>=40?'mid':'low';}
+function rClass(band){return {not_ready:'nr',building:'bd',strong:'st',file_ready:'fr'}[band]||'st';}
+
+function showResults(d){
+  $('loadingState').classList.remove('visible');
+  $('analyzeBtn').style.display='block';
+  $('submitNote').style.display='block';
+
+  $('uploadSection').style.display='none';
+  $('results').style.display='block';
+  window.scrollTo({top:0,behavior:'smooth'});
+
+  const ring=$('scoreRing');
+  ring.className='score-ring '+rClass(d.band);
+  $('scoreNum').textContent=d.overall_score;
+
+  document.querySelectorAll('.bband').forEach(b=>b.classList.toggle('active',b.dataset.b===d.band));
+
+  $('resBand').textContent=(d.band_label||'')+(d.overall_score?' · '+d.overall_score+'/100':'');
+  $('resTitle').textContent=fname||'Your analysis';
+  $('resSummary').textContent=d.summary||'';
+  const tags=$('resTags');
+  tags.innerHTML='';
+  if(d.technology_domain)tags.innerHTML+=`<span class="res-tag">${d.technology_domain}</span>`;
+  if(d.ai_contribution_level)tags.innerHTML+=`<span class="res-tag">AI contribution: ${d.ai_contribution_level}</span>`;
+  if(d.section_101_risk)tags.innerHTML+=`<span class="res-tag">§101 risk: ${d.section_101_risk}</span>`;
+
+  const g=$('dimsGrid'); g.innerHTML='';
+  ['section_101','novelty','human_conception','technical_specificity','prior_art_risk','documentation'].forEach(k=>{
+    const dim=d.dimensions&&d.dimensions[k]; if(!dim)return;
+    const c=sClass(dim.score);
+    g.innerHTML+=`<div class="dim-card">
+      <div class="dim-top"><div class="dim-label">${dim.label}</div><div class="dim-score ${c}">${dim.score}</div></div>
+      <div class="dim-bar"><div class="dim-fill ${c}" style="width:${dim.score}%"></div></div>
+      <div class="dim-finding">${dim.finding||''}</div>
+      <div class="dim-opp">↑ ${dim.opportunity||''}</div>
+    </div>`;
+  });
+
+  const ol=$('oppsList'); ol.innerHTML='';
+  const ico={high:'🎯',medium:'📈',low:'💡'};
+  (d.top_opportunities||[]).forEach(o=>{
+    ol.innerHTML+=`<div class="opp-card">
+      <div class="opp-ico ${o.impact}">${ico[o.impact]||'📋'}</div>
+      <div><div class="opp-area">${o.area}</div><div class="opp-action">${o.action}</div></div>
+      <div class="opp-badge ${o.impact}">${o.impact} impact</div>
+    </div>`;
+  });
+}
+
+function resetError(){
+  $('errorBox').classList.remove('visible');
+  $('analyzeBtn').disabled=false;
+  $('analyzeBtn').textContent='Get my free score →';
+}
+function resetPage(){
+  $('results').style.display='none';
+  $('uploadSection').style.display='block';
+  $('file-input').value=''; content=''; fname='';
+  $('fileSelected').classList.remove('visible');
+  $('dropZone').style.display='';
+  $('hashBox').style.display='none';
+  $('loadingState').classList.remove('visible');
+  $('errorBox').classList.remove('visible');
+  $('analyzeBtn').style.display='block';
+  $('analyzeBtn').disabled=true;
+  $('analyzeBtn').textContent='Get my free score →';
+  $('submitNote').style.display='block';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+$('analyzeBtn').addEventListener('click', async()=>{
+  if($('analyzeBtn').disabled||!content)return;
+  $('analyzeBtn').style.display='none';
+  $('submitNote').style.display='none';
+  $('loadingState').classList.add('visible');
+  $('errorBox').classList.remove('visible');
+  const t=animSteps();
+  try{
+    const r=await fetch('/.netlify/functions/analyze',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({code:content,filename:fname})
+    });
+    clearInterval(t);
+    ['ls1','ls2','ls3','ls4','ls5'].forEach(id=>$(id).className='lstep done');
+    if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||'HTTP '+r.status);}
+    const data=await r.json();
+    await new Promise(r2=>setTimeout(r2,300));
+    showResults(data);
+  }catch(err){
+    clearInterval(t);
+    $('loadingState').classList.remove('visible');
+    $('errorBox').classList.add('visible');
+    $('errorMsg').textContent='Analysis failed: '+err.message;
+    $('analyzeBtn').style.display='block';
+    $('submitNote').style.display='block';
+    $('analyzeBtn').disabled=false;
+    $('analyzeBtn').textContent='Try again →';
+  }
+});
+</script>
+</body>
+</html>

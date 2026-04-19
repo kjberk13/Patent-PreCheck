@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Assisted Filing — Patent PreCheck</title>
+  <meta name="description" content="Patent PreCheck pre-populates your provisional patent application and copyright registration from your completed review. From analysis to filing in one continuous flow."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--navy:#0C2340;--blue:#0C447C;--green:#1D9E75;--amber:#B7791F;
+      --serif:'Playfair Display',Georgia,serif;--sans:'DM Sans',-apple-system,sans-serif;
+      --bg:#F4F7FF;--card:#fff;--muted:#4A5568;--border:#E2E8F4}
+    body{font-family:var(--sans);background:var(--bg);color:#1A202C;line-height:1.7;padding-top:68px}
+    nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;gap:0;
+      background:rgba(248,250,255,0.97);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+      border-bottom:1px solid #E2E8F4;height:68px;padding:0 36px}
+    .nav-logo,.logo{display:flex;align-items:center;text-decoration:none;flex-shrink:0}
+    .nav-links,.nav-r{display:flex;align-items:center;gap:28px;margin-left:32px;flex:1}
+    nav a.nav-link,nav a.nav-a{font-size:14px;font-weight:500;color:#2D3748;text-decoration:none;transition:color .15s;white-space:nowrap}
+    nav a.nav-link:hover,nav a.nav-link:active,nav a.nav-a:hover{color:#1D9E75}
+    nav a.nav-cta,nav a.nav-btn{flex-shrink:0;align-self:center;background:#0C2340;color:#fff;
+      padding:10px 22px;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;
+      white-space:nowrap;transition:background .15s;line-height:1.4}
+    nav a.nav-cta:hover{background:#1D9E75;color:#fff}
+    footer{background:var(--navy);padding:48px 40px 32px;text-align:center}
+    footer p{font-size:13px;color:rgba(255,255,255,.4)}
+    footer a{color:rgba(255,255,255,.55);text-decoration:none;margin:0 10px}
+    footer a:hover{color:#1D9E75}
+    .container{max-width:1040px;margin:0 auto;padding:0 32px}
+    .section{padding:72px 0}
+    .eyebrow{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--green);margin-bottom:10px}
+    .section-title{font-family:var(--serif);font-size:clamp(26px,3.5vw,40px);color:var(--navy);margin-bottom:14px}
+    .section-sub{font-size:16px;color:var(--muted);max-width:600px;line-height:1.7}
+    .btn-primary{display:inline-block;background:var(--green);color:#fff;padding:13px 30px;border-radius:9px;font-weight:600;font-size:15px;text-decoration:none;transition:background .15s}
+    .btn-primary:hover{background:#188f68}
+    .btn-outline{display:inline-block;border:1.5px solid var(--navy);color:var(--navy);padding:12px 28px;border-radius:9px;font-size:14px;font-weight:500;text-decoration:none;transition:all .15s}
+    .btn-outline:hover{background:var(--navy);color:#fff}
+    
+  </style>
+  <script src="nav.js" defer></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="nav-logo"><svg height="44" viewBox="0 0 214 44" style="display:block" xmlns="http://www.w3.org/2000/svg">
+  <rect width="44" height="44" rx="8" fill="#0C447C"/>
+  <ellipse cx="22" cy="21" rx="16" ry="13" fill="none" stroke="rgba(255,255,255,0.32)" stroke-width="1.2"/>
+  <line x1="22" y1="8" x2="22" y2="34" stroke="rgba(255,255,255,0.14)" stroke-width="0.8" stroke-dasharray="2.5 2.5"/>
+  <path d="M16,11 Q9,16 16,22" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M28,11 Q35,16 28,22" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="1.2" stroke-linecap="round"/>
+  <line x1="22" y1="15" x2="16" y2="15" stroke="rgba(255,255,255,0.62)" stroke-width="1.1"/>
+  <line x1="22" y1="15" x2="28" y2="16" stroke="rgba(255,255,255,0.62)" stroke-width="1.1"/>
+  <line x1="28" y1="16" x2="32" y2="21" stroke="rgba(255,255,255,0.62)" stroke-width="1.1"/>
+  <line x1="16" y1="15" x2="16" y2="27" stroke="rgba(255,255,255,0.62)" stroke-width="1.1"/>
+  <line x1="12" y1="21" x2="22" y2="15" stroke="rgba(255,255,255,0.48)" stroke-width="1.1"/>
+  <line x1="16" y1="15" x2="12" y2="21" stroke="rgba(29,158,117,0.5)" stroke-width="1.1"/>
+  <line x1="12" y1="21" x2="16" y2="27" stroke="#1D9E75" stroke-width="2.6" stroke-linecap="round"/>
+  <line x1="16" y1="27" x2="28" y2="16" stroke="#1D9E75" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="22" cy="15" r="2.2" fill="rgba(255,255,255,0.92)"/>
+  <circle cx="32" cy="21" r="2.2" fill="rgba(255,255,255,0.92)"/>
+  <circle cx="22" cy="28" r="2.2" fill="rgba(255,255,255,0.92)"/>
+  <circle cx="12" cy="21" r="2.7" fill="#1D9E75"/>
+  <circle cx="16" cy="27" r="3.4" fill="#1D9E75"/>
+  <circle cx="28" cy="16" r="2.7" fill="#1D9E75"/>
+  <text x="56" y="27" font-family="'Playfair Display',Georgia,serif" font-size="19" font-weight="700" fill="#0C2340">Patent PreCheck</text>
+</svg></a>
+  <div class="nav-links">
+    <a href="platform.html" class="nav-link">The Platform</a>
+    <a href="index.html#pricing" class="nav-link">Pricing</a>
+    <a href="legal-intelligence.html" class="nav-link">Legal Intelligence</a>
+    <a href="attorneys.html" class="nav-link">Find an Attorney</a>
+  </div>
+  <a href="analyze.html" class="nav-cta">Check My Work →</a>
+</nav>
+
+<div style="background:var(--navy);padding:72px 40px 56px;text-align:center">
+  <div style="font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#4DD9A8;margin-bottom:14px">Assisted Filing</div>
+  <h1 style="font-family:var(--serif);font-size:clamp(30px,5vw,50px);color:#fff;margin-bottom:18px;line-height:1.2">Your analysis becomes<br><em style="color:#4DD9A8;font-style:normal">your application.</em></h1>
+  <p style="font-size:17px;color:rgba(255,255,255,.7);max-width:560px;margin:0 auto 36px;line-height:1.7">When your review is complete, you're not starting over. Patent PreCheck pre-populates your provisional patent application and copyright registration from the analysis we've already done together.</p>
+  <a href="analyze.html" style="display:inline-block;background:#1D9E75;color:#fff;padding:13px 32px;border-radius:9px;font-weight:600;font-size:15px;text-decoration:none">Start your review →</a>
+</div>
+
+<div class="container">
+<div class="section">
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:48px;margin-bottom:64px">
+
+    <div style="background:#fff;border:1.5px solid var(--navy);border-radius:16px;overflow:hidden">
+      <div style="background:var(--navy);padding:20px 24px">
+        <div style="font-size:11px;font-weight:600;color:#4DD9A8;letter-spacing:.06em;margin-bottom:4px">PROVISIONAL PATENT APPLICATION</div>
+        <div style="font-family:var(--serif);font-size:20px;color:#fff">USPTO Filing</div>
+      </div>
+      <div style="padding:24px">
+        <p style="font-size:14px;color:#4A5568;line-height:1.7;margin-bottom:20px">A provisional patent establishes your filing date — locking in your priority over anyone else working on similar technology. You have 12 months to convert it to a full application.</p>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px">
+          <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:#1D9E75;flex-shrink:0">✓</span><span style="font-size:13px;color:#2D3748">Pre-populated from your Patent PreCheck review and Inventor's Notebook</span></div>
+          <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:#1D9E75;flex-shrink:0">✓</span><span style="font-size:13px;color:#2D3748">Human conception evidence already documented and formatted</span></div>
+          <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:#1D9E75;flex-shrink:0">✓</span><span style="font-size:13px;color:#2D3748">You review and approve every word before it's filed</span></div>
+          <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:#1D9E75;flex-shrink:0">✓</span><span style="font-size:13px;color:#2D3748">Filed directly with the USPTO — $320 government fee</span></div>
+        </div>
+        <div style="background:#F4F7FF;border-radius:8px;padding:14px;font-size:12px;color:#4A5568;line-height:1.5">
+          <strong style="color:var(--navy)">Not legal advice:</strong> Provisional patent preparation and filing involves legal decisions specific to your situation. We help you prepare the application — we strongly recommend having an IP attorney review it before filing.
+        </div>
+      </div>
+    </div>
+
+    <div style="background:#fff;border:1.5px solid #0C447C;border-radius:16px;overflow:hidden">
+      <div style="background:#0C447C;padding:20px 24px">
+        <div style="font-size:11px;font-weight:600;color:#4DD9A8;letter-spacing:.06em;margin-bottom:4px">COPYRIGHT REGISTRATION</div>
+        <div style="font-family:var(--serif);font-size:20px;color:#fff">Copyright Office Filing</div>
+      </div>
+      <div style="padding:24px">
+        <p style="font-size:14px;color:#4A5568;line-height:1.7;margin-bottom:20px">Copyright protects your source code as a creative work — separate from and complementary to patent protection. Registration is fast, inexpensive, and significantly strengthens your legal position.</p>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px">
+          <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:#1D9E75;flex-shrink:0">✓</span><span style="font-size:13px;color:#2D3748">Automated filing with the U.S. Copyright Office</span></div>
+          <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:#1D9E75;flex-shrink:0">✓</span><span style="font-size:13px;color:#2D3748">Your SHA-256 verified file hash provides proof of authorship date</span></div>
+          <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:#1D9E75;flex-shrink:0">✓</span><span style="font-size:13px;color:#2D3748">Creates a public record of your authorship and creation date</span></div>
+          <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:#1D9E75;flex-shrink:0">✓</span><span style="font-size:13px;color:#2D3748">$35 government fee — most registrations complete in 3–6 months</span></div>
+        </div>
+        <div style="background:#F4F7FF;border-radius:8px;padding:14px;font-size:12px;color:#4A5568;line-height:1.5">
+          <strong style="color:var(--navy)">On AI-assisted code:</strong> The Copyright Office requires human authorship. Our review and your Inventor's Notebook document your human creative contributions — this is what makes your registration defensible.
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="background:#F4F7FF;border-radius:16px;padding:40px;margin-bottom:64px">
+    <h2 style="font-family:var(--serif);font-size:26px;color:var(--navy);margin-bottom:8px;text-align:center">The full picture: patent + copyright</h2>
+    <p style="font-size:14px;color:#4A5568;text-align:center;max-width:560px;margin:0 auto 32px;line-height:1.7">These two protections work differently and reinforce each other. Most software developers should consider both.</p>
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:24px;align-items:start">
+      <div>
+        <div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:12px">Patent protects</div>
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <div style="font-size:13px;color:#4A5568;display:flex;gap:8px"><span style="color:#1D9E75">✓</span>The idea, method, or process</div>
+          <div style="font-size:13px;color:#4A5568;display:flex;gap:8px"><span style="color:#1D9E75">✓</span>Novel algorithms and systems</div>
+          <div style="font-size:13px;color:#4A5568;display:flex;gap:8px"><span style="color:#1D9E75">✓</span>Even if someone reimplements it differently</div>
+          <div style="font-size:13px;color:#4A5568;display:flex;gap:8px"><span style="color:#1D9E75">✓</span>20-year protection</div>
+        </div>
+      </div>
+      <div style="width:1px;background:var(--border);align-self:stretch;margin:0 12px"></div>
+      <div>
+        <div style="font-size:13px;font-weight:600;color:#0C447C;margin-bottom:12px">Copyright protects</div>
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <div style="font-size:13px;color:#4A5568;display:flex;gap:8px"><span style="color:#0C447C">✓</span>The specific code you wrote</div>
+          <div style="font-size:13px;color:#4A5568;display:flex;gap:8px"><span style="color:#0C447C">✓</span>Your documentation and architecture</div>
+          <div style="font-size:13px;color:#4A5568;display:flex;gap:8px"><span style="color:#0C447C">✓</span>Literal copying or reproduction</div>
+          <div style="font-size:13px;color:#4A5568;display:flex;gap:8px"><span style="color:#0C447C">✓</span>Life + 70 years</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="background:var(--navy);border-radius:20px;padding:56px;text-align:center">
+    <h2 style="font-family:var(--serif);font-size:30px;color:#fff;margin-bottom:14px">Complete your review first</h2>
+    <p style="color:rgba(255,255,255,.7);font-size:15px;max-width:500px;margin:0 auto 28px;line-height:1.7">Assisted filing is available after you complete your full Patent PreCheck review ($69.99). The review builds the record that makes your filings defensible.</p>
+    <a href="analyze.html" style="display:inline-block;background:#1D9E75;color:#fff;padding:13px 32px;border-radius:9px;font-weight:600;font-size:15px;text-decoration:none">Start with a free score →</a>
+  </div>
+
+</div>
+</div>
+
+<footer>
+  <div style="text-align:center;padding:0 0 28px"><svg height="32" viewBox="0 0 160 32" style="display:inline-block" xmlns="http://www.w3.org/2000/svg">
+  <rect width="32" height="32" rx="5" fill="#0C447C"/>
+  <ellipse cx="16" cy="15" rx="11.5" ry="9.5" fill="none" stroke="rgba(255,255,255,0.32)" stroke-width="1"/>
+  <line x1="16" y1="10" x2="11" y2="10" stroke="rgba(255,255,255,0.62)" stroke-width="1"/>
+  <line x1="16" y1="10" x2="21" y2="11" stroke="rgba(255,255,255,0.62)" stroke-width="1"/>
+  <line x1="8" y1="15" x2="16" y2="10" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>
+  <line x1="11" y1="10" x2="8" y2="15" stroke="rgba(29,158,117,0.5)" stroke-width="1"/>
+  <line x1="8" y1="15" x2="11" y2="20" stroke="#1D9E75" stroke-width="2" stroke-linecap="round"/>
+  <line x1="11" y1="20" x2="21" y2="11" stroke="#1D9E75" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="8" cy="15" r="2" fill="#1D9E75"/>
+  <circle cx="11" cy="20" r="2.5" fill="#1D9E75"/>
+  <circle cx="21" cy="11" r="2" fill="#1D9E75"/>
+  <text x="42" y="19" font-family="'Playfair Display',Georgia,serif" font-size="14" font-weight="700" fill="white">Patent PreCheck</text>
+</svg></div>
+  <p>
+    <a href="platform.html">The Platform</a>
+    <a href="index.html#pricing">Pricing</a>
+    <a href="legal-intelligence.html">Legal Intelligence</a>
+    <a href="attorneys.html">Find an Attorney</a>
+    <a href="filing.html">Assisted Filing</a>
+    <a href="notebook.html">Inventor's Notebook</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="terms.html">Terms</a>
+  </p>
+  <p style="margin-top:12px">© 2026 Patent PreCheck · Not legal advice · patentprecheck.com</p>
+</footer>
+</body>
+</html>

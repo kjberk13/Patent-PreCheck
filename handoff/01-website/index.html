@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Patent PreCheck — Know your patent position before you file</title>
+  <meta name="description" content="Upload your code or AI conversation and get a Patent PreCheck Score in seconds. Interactive review, Inventor's Notebook, assisted filing, attorney network, and prior art monitoring — everything you need to protect what you build."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--navy:#0C2340;--blue:#0C447C;--green:#1D9E75;--sans:'DM Sans',-apple-system,sans-serif;--serif:'Playfair Display',Georgia,serif}
+    body{font-family:var(--sans);background:#F4F7FF;color:#1A202C;line-height:1.7;padding-top:68px}
+    nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;gap:0;
+      background:rgba(248,250,255,0.97);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+      border-bottom:1px solid #E2E8F4;height:68px;padding:0 36px}
+    .nav-logo{display:flex;align-items:center;text-decoration:none;flex-shrink:0}
+    .nav-links{display:flex;align-items:center;gap:28px;margin-left:32px;flex:1}
+    nav a.nav-link{font-size:14px;font-weight:500;color:#2D3748;text-decoration:none;transition:color .15s;white-space:nowrap}
+    nav a.nav-link:hover{color:#1D9E75}
+    nav a.nav-cta{flex-shrink:0;align-self:center;background:#0C2340;color:#fff;padding:10px 22px;
+      border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap;
+      transition:background .15s;line-height:1.4;margin-left:40px}
+    nav a.nav-cta:hover{background:#1D9E75}
+    footer{background:var(--navy);padding:48px 40px 32px;text-align:center}
+    footer p{font-size:13px;color:rgba(255,255,255,.4)}
+    footer a{color:rgba(255,255,255,.55);text-decoration:none;margin:0 10px}
+    footer a:hover{color:#1D9E75}
+    .container{max-width:1040px;margin:0 auto;padding:0 36px}
+    h2.section-title{font-family:var(--serif);font-size:clamp(26px,3.5vw,40px);color:var(--navy);margin-bottom:14px}
+    .eyebrow{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#1D9E75;margin-bottom:10px}
+    .check{color:#1D9E75;flex-shrink:0;margin-top:2px}
+    a.btn-g{display:inline-block;background:#1D9E75;color:#fff;padding:13px 30px;border-radius:9px;font-weight:600;font-size:15px;text-decoration:none;transition:background .15s}
+    a.btn-g:hover{background:#188f68}
+    a.btn-n{display:inline-block;background:var(--navy);color:#fff;padding:13px 30px;border-radius:9px;font-weight:600;font-size:15px;text-decoration:none;transition:background .15s}
+    a.btn-n:hover{background:#0C447C}
+    a.btn-o{display:inline-block;border:1.5px solid var(--navy);color:var(--navy);padding:11px 24px;border-radius:9px;font-size:14px;font-weight:500;text-decoration:none;transition:all .15s}
+    a.btn-o:hover{background:var(--navy);color:#fff}
+  </style>
+  <script src="nav.js" defer></script>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="nav-logo">
+    <svg height="44" viewBox="0 0 214 44" xmlns="http://www.w3.org/2000/svg">
+      <rect width="44" height="44" rx="8" fill="#0C447C"/>
+      <ellipse cx="22" cy="21" rx="16" ry="13" fill="none" stroke="rgba(255,255,255,0.32)" stroke-width="1.2"/>
+      <line x1="22" y1="15" x2="16" y2="15" stroke="rgba(255,255,255,0.62)" stroke-width="1.1"/>
+      <line x1="22" y1="15" x2="28" y2="16" stroke="rgba(255,255,255,0.62)" stroke-width="1.1"/>
+      <line x1="28" y1="16" x2="32" y2="21" stroke="rgba(255,255,255,0.62)" stroke-width="1.1"/>
+      <line x1="16" y1="15" x2="16" y2="27" stroke="rgba(255,255,255,0.62)" stroke-width="1.1"/>
+      <line x1="12" y1="21" x2="22" y2="15" stroke="rgba(255,255,255,0.48)" stroke-width="1.1"/>
+      <line x1="16" y1="15" x2="12" y2="21" stroke="rgba(29,158,117,0.5)" stroke-width="1.1"/>
+      <line x1="12" y1="21" x2="16" y2="27" stroke="#1D9E75" stroke-width="2.6" stroke-linecap="round"/>
+      <line x1="16" y1="27" x2="28" y2="16" stroke="#1D9E75" stroke-width="2.6" stroke-linecap="round"/>
+      <circle cx="12" cy="21" r="2.7" fill="#1D9E75"/>
+      <circle cx="16" cy="27" r="3.4" fill="#1D9E75"/>
+      <circle cx="28" cy="16" r="2.7" fill="#1D9E75"/>
+      <text x="56" y="27" font-family="'Playfair Display',Georgia,serif" font-size="19" font-weight="700" fill="#0C2340">Patent PreCheck</text>
+    </svg>
+  </a>
+  <div class="nav-links">
+    <a href="platform.html" class="nav-link">The Platform</a>
+    <a href="#pricing" class="nav-link">Pricing</a>
+    <a href="legal-intelligence.html" class="nav-link">Legal Intelligence</a>
+    <a href="attorneys.html" class="nav-link">Find an Attorney</a>
+  </div>
+  <a href="analyze.html" class="nav-cta">Check My Work &rarr;</a>
+</nav>
+
+<!-- HERO -->
+<section style="background:var(--navy);padding:88px 40px 72px;text-align:center">
+  <div style="display:inline-block;background:rgba(29,158,117,.15);border:1px solid rgba(29,158,117,.3);border-radius:20px;padding:5px 16px;font-size:11px;font-weight:600;color:#4DD9A8;letter-spacing:.08em;text-transform:uppercase;margin-bottom:22px">Free to start &nbsp;&middot;&nbsp; No account required</div>
+  <h1 style="font-family:var(--serif);font-size:clamp(36px,6vw,72px);color:#fff;margin-bottom:20px;line-height:1.12;max-width:900px;margin-left:auto;margin-right:auto">Is your idea protected?<br>Can it be <em style="color:#4DD9A8;font-style:normal">patented?</em></h1>
+  <p style="font-size:18px;color:rgba(255,255,255,.72);max-width:580px;margin:0 auto 36px;line-height:1.75">Upload any code, conversation, or document — including anything created with an AI tool. Get your Patent PreCheck Score in seconds, in plain English.</p>
+  <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:20px">
+    <a href="analyze.html" class="btn-g" style="font-size:16px;padding:14px 36px">Check my work — free &rarr;</a>
+    <a href="platform.html" class="btn-o" style="border-color:rgba(255,255,255,.4);color:rgba(255,255,255,.8);font-size:15px">See the full platform</a>
+  </div>
+  <p style="font-size:13px;color:rgba(255,255,255,.4)">No account required &nbsp;&middot;&nbsp; Upload code, docs, or notes &nbsp;&middot;&nbsp; Works with any AI tool</p>
+</section>
+
+<!-- SCORE DISPLAY -->
+<section style="background:#F0F4FF;padding:64px 40px">
+  <div class="container">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center">
+      <div>
+        <div class="eyebrow">The Patent PreCheck Score</div>
+        <h2 class="section-title">Know exactly where you stand</h2>
+        <p style="font-size:16px;color:#4A5568;margin-bottom:20px;line-height:1.7">Our score estimates the likelihood that your idea, code, or invention qualifies for patent protection — based on current US patent law, updated daily. One number. Plain English. Actionable.</p>
+        <p style="font-size:16px;color:#4A5568;line-height:1.7">The score is always free. No account. No commitment. Start there.</p>
+        <div style="margin-top:28px"><a href="analyze.html" class="btn-g">Get your free score &rarr;</a></div>
+      </div>
+      <div style="background:var(--navy);border-radius:18px;padding:32px">
+        <div style="display:flex;align-items:center;gap:18px;margin-bottom:22px;padding-bottom:20px;border-bottom:1px solid rgba(255,255,255,.1)">
+          <div style="width:72px;height:72px;border-radius:50%;border:4px solid #4DD9A8;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:28px;font-weight:700;color:#4DD9A8;flex-shrink:0">76</div>
+          <div>
+            <div style="font-size:16px;font-weight:500;color:#fff;font-family:var(--serif)">Patent PreCheck Score</div>
+            <div style="font-size:13px;color:rgba(255,255,255,.55);margin-top:3px">SmartQueue v2 &nbsp;&middot;&nbsp; Strong position</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);border-radius:8px;overflow:hidden">
+          <div style="padding:10px 6px;text-align:center;background:#FCEBEB"><div style="font-size:13px;font-weight:600;color:#E24B4A">0–39</div><div style="font-size:9px;color:#E24B4A;margin-top:2px">Not ready</div></div>
+          <div style="padding:10px 6px;text-align:center;background:#FAEEDA"><div style="font-size:13px;font-weight:600;color:#B7791F">40–59</div><div style="font-size:9px;color:#B7791F;margin-top:2px">Building</div></div>
+          <div style="padding:10px 6px;text-align:center;background:#E6F1FB;border-bottom:2px solid #4DD9A8"><div style="font-size:13px;font-weight:600;color:#4DD9A8">60–79</div><div style="font-size:9px;color:#4DD9A8;margin-top:2px">Strong &#9664;</div></div>
+          <div style="padding:10px 6px;text-align:center;background:#EAF3DE"><div style="font-size:13px;font-weight:600;color:#1D9E75">80–100</div><div style="font-size:9px;color:#1D9E75;margin-top:2px">File-ready</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- THE PLATFORM — ALL 7 LAYERS -->
+<section style="background:#fff;padding:80px 40px">
+  <div class="container">
+    <div style="text-align:center;margin-bottom:56px">
+      <div class="eyebrow">Everything you need in one place</div>
+      <h2 class="section-title" style="max-width:600px;margin:0 auto 14px">From first idea to filed patent</h2>
+      <p style="font-size:16px;color:#4A5568;max-width:540px;margin:0 auto">Patent PreCheck isn't a one-time check. It's a full protection platform — built around your work, updated with current law, and designed to compound over time.</p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+      <!-- 1: Free Score -->
+      <div style="background:#F4F7FF;border:1px solid #E2E8F4;border-radius:14px;padding:28px;display:flex;gap:20px;align-items:flex-start">
+        <div style="width:44px;height:44px;background:var(--navy);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--serif);font-size:18px;color:#4DD9A8;font-weight:700">1</div>
+        <div>
+          <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:6px">Patent PreCheck Score</div>
+          <div style="font-size:13px;color:#4A5568;line-height:1.6;margin-bottom:12px">Upload anything — code, notes, an AI conversation. Get a 0–100 score based on today's law. Free, no account, under 60 seconds.</div>
+          <a href="analyze.html" style="font-size:13px;color:#1D9E75;font-weight:500;text-decoration:none">Get your free score &rarr;</a>
+        </div>
+      </div>
+
+      <!-- 2: Interactive Review -->
+      <div style="background:#F4F7FF;border:1px solid #E2E8F4;border-radius:14px;padding:28px;display:flex;gap:20px;align-items:flex-start">
+        <div style="width:44px;height:44px;background:#0C447C;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--serif);font-size:18px;color:#fff;font-weight:700">2</div>
+        <div>
+          <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:6px">Interactive Code Review <span style="font-size:12px;background:#E6F1FB;color:#0C447C;padding:2px 8px;border-radius:10px;font-weight:500;margin-left:6px">$69.99</span></div>
+          <div style="font-size:13px;color:#4A5568;line-height:1.6;margin-bottom:12px">Our AI walks through your code section by section, highlights areas to strengthen, and shows you specific edits. Your score updates live as you improve. 30-day window — log in anytime.</div>
+          <a href="platform.html#review" style="font-size:13px;color:#1D9E75;font-weight:500;text-decoration:none">See how it works &rarr;</a>
+        </div>
+      </div>
+
+      <!-- 3: Dated Report / Record -->
+      <div style="background:#F4F7FF;border:1px solid #E2E8F4;border-radius:14px;padding:28px;display:flex;gap:20px;align-items:flex-start">
+        <div style="width:44px;height:44px;background:#1D9E75;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px">📋</div>
+        <div>
+          <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:6px">The Patent PreCheck Report</div>
+          <div style="font-size:13px;color:#4A5568;line-height:1.6;margin-bottom:12px">A dated, digitally signed analysis with a unique report ID and SHA-256 file hash. Structured evidence of your patent position — ready for an attorney, an investor, or a USPTO proceeding.</div>
+          <a href="platform.html" style="font-size:13px;color:#1D9E75;font-weight:500;text-decoration:none">About the report &rarr;</a>
+        </div>
+      </div>
+
+      <!-- 4: Inventor's Notebook -->
+      <div style="background:#F4F7FF;border:1px solid #E2E8F4;border-radius:14px;padding:28px;display:flex;gap:20px;align-items:flex-start">
+        <div style="width:44px;height:44px;background:#1D9E75;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px">📓</div>
+        <div>
+          <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:6px">Inventor's Notebook</div>
+          <div style="font-size:13px;color:#4A5568;line-height:1.6;margin-bottom:12px">Log your key creative decisions as you make them — timestamped, linked to your project, exportable as a formal inventor's declaration. The best IP records are built moment by moment.</div>
+          <a href="notebook.html" style="font-size:13px;color:#1D9E75;font-weight:500;text-decoration:none">Learn about the Notebook &rarr;</a>
+        </div>
+      </div>
+
+      <!-- 5: Assisted Filing -->
+      <div style="background:#F4F7FF;border:1px solid #E2E8F4;border-radius:14px;padding:28px;display:flex;gap:20px;align-items:flex-start">
+        <div style="width:44px;height:44px;background:var(--navy);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px">📝</div>
+        <div>
+          <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:6px">Assisted Filing</div>
+          <div style="font-size:13px;color:#4A5568;line-height:1.6;margin-bottom:12px">When your review is complete, we pre-populate your provisional patent application and copyright registration from the analysis. Your review becomes your filing. No starting over.</div>
+          <a href="filing.html" style="font-size:13px;color:#1D9E75;font-weight:500;text-decoration:none">About assisted filing &rarr;</a>
+        </div>
+      </div>
+
+      <!-- 6: Attorney Network -->
+      <div style="background:#F4F7FF;border:1px solid #E2E8F4;border-radius:14px;padding:28px;display:flex;gap:20px;align-items:flex-start">
+        <div style="width:44px;height:44px;background:#0C447C;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px">⚖️</div>
+        <div>
+          <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:6px">Attorney Network</div>
+          <div style="font-size:13px;color:#4A5568;line-height:1.6;margin-bottom:12px">Connect with IP attorneys who specialize in AI-assisted inventions. Your full report, Inventor's Notebook export, and provisional draft arrive before your first call. Skip the intake.</div>
+          <a href="attorneys.html" style="font-size:13px;color:#1D9E75;font-weight:500;text-decoration:none">Find an attorney &rarr;</a>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Monitoring + Prior Art — full width -->
+    <div style="background:var(--navy);border-radius:14px;padding:28px 32px;margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start">
+      <div>
+        <div style="display:flex;gap:16px;align-items:flex-start">
+          <div style="width:44px;height:44px;background:rgba(255,255,255,.08);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px">⚖️</div>
+          <div>
+            <div style="font-size:15px;font-weight:600;color:#fff;margin-bottom:6px">Legal Change Monitoring</div>
+            <div style="font-size:13px;color:rgba(255,255,255,.65);line-height:1.6">When new case law or USPTO guidance could affect your project, you get a direct, project-specific alert within 24 hours. Included for 30 days after your review completes — then available as an ongoing subscription.</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="display:flex;gap:16px;align-items:flex-start">
+          <div style="width:44px;height:44px;background:rgba(255,255,255,.08);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px">🔍</div>
+          <div>
+            <div style="font-size:15px;font-weight:600;color:#fff;margin-bottom:6px">Prior Art Watch</div>
+            <div style="font-size:13px;color:rgba(255,255,255,.65);line-height:1.6">We monitor the patent database for new filings that overlap with your work. If a competing application is published in your space, you hear about it immediately — not months later from your attorney.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-top:40px">
+      <a href="platform.html" class="btn-n">See the full platform &rarr;</a>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section style="background:#F4F7FF;padding:80px 40px" id="how-it-works">
+  <div class="container">
+    <div style="text-align:center;margin-bottom:52px">
+      <div class="eyebrow">How it works</div>
+      <h2 class="section-title">Start free. Protect what you build.</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;background:#fff;border:1px solid #E2E8F4;border-radius:16px;overflow:hidden">
+      <div style="padding:28px 22px;border-right:1px solid #E2E8F4">
+        <div style="width:36px;height:36px;background:var(--navy);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:15px;margin-bottom:16px">1</div>
+        <div style="font-size:14px;font-weight:600;color:var(--navy);margin-bottom:8px">Upload your work</div>
+        <div style="font-size:13px;color:#4A5568;line-height:1.6">Code, an AI conversation, notes — anything. No account required. We analyze and return your code to you.</div>
+      </div>
+      <div style="padding:28px 22px;border-right:1px solid #E2E8F4">
+        <div style="width:36px;height:36px;background:var(--navy);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:15px;margin-bottom:16px">2</div>
+        <div style="font-size:14px;font-weight:600;color:var(--navy);margin-bottom:8px">Get your score</div>
+        <div style="font-size:13px;color:#4A5568;line-height:1.6">Your Patent PreCheck Score in under 60 seconds. Free, no card, plain English. Unlock the full review for $69.99.</div>
+      </div>
+      <div style="padding:28px 22px;border-right:1px solid #E2E8F4">
+        <div style="width:36px;height:36px;background:#0C447C;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:15px;margin-bottom:16px">3</div>
+        <div style="font-size:14px;font-weight:600;color:var(--navy);margin-bottom:8px">Strengthen your record</div>
+        <div style="font-size:13px;color:#4A5568;line-height:1.6">Work through the interactive review at your pace. Edit your code, see your score improve. 30 days — log in anytime.</div>
+      </div>
+      <div style="padding:28px 22px">
+        <div style="width:36px;height:36px;background:#1D9E75;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:15px;margin-bottom:16px">4</div>
+        <div style="font-size:14px;font-weight:600;color:var(--navy);margin-bottom:8px">File and stay protected</div>
+        <div style="font-size:13px;color:#4A5568;line-height:1.6">Assisted filing, attorney matching, and 30-day legal monitoring after you complete your review.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section style="background:#fff;padding:80px 40px" id="pricing">
+  <div class="container">
+    <div style="text-align:center;margin-bottom:48px">
+      <div class="eyebrow">Pricing</div>
+      <h2 class="section-title">Start free. Upgrade when you're ready.</h2>
+      <p style="font-size:16px;color:#4A5568;max-width:520px;margin:0 auto">Your score is always free. Unlock the full platform when your work is ready for serious protection.</p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;align-items:start">
+
+      <!-- Free -->
+      <div style="background:#F4F7FF;border:1px solid #E2E8F4;border-radius:16px;overflow:hidden">
+        <div style="padding:28px 28px 20px">
+          <div style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#718096;margin-bottom:12px">Free</div>
+          <div style="font-family:var(--serif);font-size:40px;color:var(--navy);margin-bottom:4px">$0</div>
+          <div style="font-size:13px;color:#718096;margin-bottom:20px">No account required</div>
+          <a href="analyze.html" style="display:block;text-align:center;background:#E2E8F4;color:var(--navy);padding:11px;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;transition:background .15s">Get your free score</a>
+        </div>
+        <div style="padding:0 28px 28px;border-top:1px solid #E2E8F4;padding-top:20px">
+          <div style="font-size:12px;font-weight:600;color:#718096;margin-bottom:12px;text-transform:uppercase;letter-spacing:.06em">Includes</div>
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#2D3748"><span class="check">✓</span>Patent PreCheck Score (0–100)</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#2D3748"><span class="check">✓</span>Plain English score summary</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#2D3748"><span class="check">✓</span>Code analyzed then returned — session based</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#A0AEC0"><span style="color:#CBD5E0;flex-shrink:0">—</span>Full review &amp; recommendations</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#A0AEC0"><span style="color:#CBD5E0;flex-shrink:0">—</span>Inventor's Notebook</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#A0AEC0"><span style="color:#CBD5E0;flex-shrink:0">—</span>Summary report PDF</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#A0AEC0"><span style="color:#CBD5E0;flex-shrink:0">—</span>Legal monitoring</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Full Review — FEATURED -->
+      <div style="background:var(--navy);border-radius:16px;overflow:hidden;position:relative;border:2px solid #1D9E75">
+        <div style="background:#1D9E75;text-align:center;padding:6px;font-size:11px;font-weight:600;color:#fff;letter-spacing:.08em;text-transform:uppercase">Most popular</div>
+        <div style="padding:28px 28px 20px">
+          <div style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-bottom:12px">Full Review</div>
+          <div style="font-family:var(--serif);font-size:40px;color:#fff;margin-bottom:4px">$69.99</div>
+          <div style="font-size:13px;color:rgba(255,255,255,.5);margin-bottom:20px">One-time &nbsp;&middot;&nbsp; not a subscription</div>
+          <a href="analyze.html" style="display:block;text-align:center;background:#1D9E75;color:#fff;padding:11px;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;transition:background .15s">Start your review</a>
+        </div>
+        <div style="padding:0 28px 28px;border-top:1px solid rgba(255,255,255,.1);padding-top:20px">
+          <div style="font-size:12px;font-weight:600;color:rgba(255,255,255,.4);margin-bottom:12px;text-transform:uppercase;letter-spacing:.06em">Everything in Free, plus</div>
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#fff"><span style="color:#1D9E75;flex-shrink:0;margin-top:2px">✓</span>Full section-by-section code review</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#fff"><span style="color:#1D9E75;flex-shrink:0;margin-top:2px">✓</span>Interactive AI — specific edits, live score updates</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#fff"><span style="color:#1D9E75;flex-shrink:0;margin-top:2px">✓</span>30-day review window — log in anytime</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#fff"><span style="color:#1D9E75;flex-shrink:0;margin-top:2px">✓</span>Inventor's Notebook (timestamped decisions)</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#fff"><span style="color:#1D9E75;flex-shrink:0;margin-top:2px">✓</span>Summary report PDF on completion</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#fff"><span style="color:#1D9E75;flex-shrink:0;margin-top:2px">✓</span>30-day legal monitoring after completion</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#fff"><span style="color:#1D9E75;flex-shrink:0;margin-top:2px">✓</span>Assisted filing access (provisional + copyright)</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#fff"><span style="color:#1D9E75;flex-shrink:0;margin-top:2px">✓</span>Attorney network access with warm handoff</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Re-review + Enterprise -->
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="background:#F4F7FF;border:1px solid #E2E8F4;border-radius:16px;padding:24px">
+          <div style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#718096;margin-bottom:10px">Re-review</div>
+          <div style="font-family:var(--serif);font-size:32px;color:var(--navy);margin-bottom:4px">$29.99</div>
+          <div style="font-size:13px;color:#718096;margin-bottom:16px">For existing account holders</div>
+          <div style="font-size:13px;color:#4A5568;line-height:1.6;margin-bottom:16px">When new case law may affect an older project, re-run the full analysis against current law. Includes before/after comparison and updated recommendations.</div>
+          <a href="analyze.html" style="display:block;text-align:center;background:#E2E8F4;color:var(--navy);padding:9px;border-radius:7px;font-weight:600;font-size:13px;text-decoration:none">Re-review a project</a>
+        </div>
+        <div style="background:#F4F7FF;border:1px solid #E2E8F4;border-radius:16px;padding:24px">
+          <div style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#718096;margin-bottom:10px">Enterprise</div>
+          <div style="font-family:var(--serif);font-size:22px;color:var(--navy);margin-bottom:8px">Custom pricing</div>
+          <div style="font-size:13px;color:#4A5568;line-height:1.6;margin-bottom:16px">Portfolio dashboard, team conception tracking, investor IP audit, attorney collaboration portal. For startups, engineering teams, and VC-backed companies preparing for due diligence.</div>
+          <a href="mailto:enterprise@patentprecheck.com" style="display:block;text-align:center;border:1.5px solid var(--navy);color:var(--navy);padding:9px;border-radius:7px;font-weight:600;font-size:13px;text-decoration:none">Talk to us</a>
+        </div>
+      </div>
+
+    </div>
+
+    <div style="text-align:center;margin-top:24px;font-size:13px;color:#718096">
+      Patent PreCheck is not a law firm and does not provide legal advice. &nbsp;&middot;&nbsp; <a href="attorneys.html" style="color:#1D9E75;text-decoration:none">Find an IP attorney &rarr;</a>
+    </div>
+  </div>
+</section>
+
+<!-- WHO IT'S FOR -->
+<section style="background:#F4F7FF;padding:80px 40px">
+  <div class="container">
+    <div style="text-align:center;margin-bottom:48px">
+      <div class="eyebrow">Who it's for</div>
+      <h2 class="section-title">Built for people who build with AI</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+      <div style="background:#fff;border:1px solid #E2E8F4;border-radius:14px;padding:28px">
+        <div style="font-size:28px;margin-bottom:14px">👨‍💻</div>
+        <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:8px">Independent developers</div>
+        <div style="font-size:13px;color:#4A5568;line-height:1.6">You built something real. You used AI tools to do it faster. Now you need to know whether it's patentable — and whether the human contribution is documented well enough to defend.</div>
+      </div>
+      <div style="background:#fff;border:1px solid #E2E8F4;border-radius:14px;padding:28px">
+        <div style="font-size:28px;margin-bottom:14px">🚀</div>
+        <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:8px">Founders and early-stage teams</div>
+        <div style="font-size:13px;color:#4A5568;line-height:1.6">Your IP position matters to investors. Before your next raise, know exactly where you stand — and have a clean, documented record to show at due diligence.</div>
+      </div>
+      <div style="background:#fff;border:1px solid #E2E8F4;border-radius:14px;padding:28px">
+        <div style="font-size:28px;margin-bottom:14px">⚖️</div>
+        <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:8px">IP attorneys and their clients</div>
+        <div style="font-size:13px;color:#4A5568;line-height:1.6">Start every engagement with a client who already has a scored analysis, documented conception record, and provisional patent draft. Skip intake. Get to strategy.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section style="background:linear-gradient(135deg,var(--navy) 0%,#0a3060 100%);padding:96px 40px;text-align:center">
+  <div style="font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#4DD9A8;margin-bottom:16px">Ready when you are</div>
+  <h2 style="font-family:var(--serif);font-size:clamp(32px,5vw,52px);color:#fff;margin-bottom:18px;line-height:1.2">Start with your free score.<br>Everything else follows.</h2>
+  <p style="font-size:17px;color:rgba(255,255,255,.7);max-width:480px;margin:0 auto 36px;line-height:1.7">No account. No card. Just upload your work and know where you stand in under 60 seconds.</p>
+  <a href="analyze.html" class="btn-g" style="font-size:16px;padding:15px 40px">Check my work — free &rarr;</a>
+</section>
+
+<footer>
+  <div style="text-align:center;padding:0 0 24px">
+    <svg height="32" viewBox="0 0 160 32" xmlns="http://www.w3.org/2000/svg">
+      <rect width="32" height="32" rx="5" fill="#0C447C"/>
+      <line x1="16" y1="10" x2="11" y2="10" stroke="rgba(255,255,255,.62)" stroke-width="1"/>
+      <line x1="16" y1="10" x2="21" y2="11" stroke="rgba(255,255,255,.62)" stroke-width="1"/>
+      <line x1="8" y1="15" x2="16" y2="10" stroke="rgba(255,255,255,.45)" stroke-width="1"/>
+      <line x1="11" y1="10" x2="8" y2="15" stroke="rgba(29,158,117,.5)" stroke-width="1"/>
+      <line x1="8" y1="15" x2="11" y2="20" stroke="#1D9E75" stroke-width="2" stroke-linecap="round"/>
+      <line x1="11" y1="20" x2="21" y2="11" stroke="#1D9E75" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="8" cy="15" r="2" fill="#1D9E75"/><circle cx="11" cy="20" r="2.5" fill="#1D9E75"/><circle cx="21" cy="11" r="2" fill="#1D9E75"/>
+      <text x="42" y="19" font-family="'Playfair Display',Georgia,serif" font-size="14" font-weight="700" fill="white">Patent PreCheck</text>
+    </svg>
+  </div>
+  <p style="margin-bottom:12px">
+    <a href="platform.html">The Platform</a><a href="notebook.html">Inventor&#39;s Notebook</a>
+    <a href="filing.html">Assisted Filing</a><a href="attorneys.html">Find an Attorney</a>
+    <a href="legal-intelligence.html">Legal Intelligence</a>
+    <a href="privacy.html">Privacy</a><a href="terms.html">Terms</a>
+  </p>
+  <p>&copy; 2026 Patent PreCheck &nbsp;&middot;&nbsp; Not legal advice &nbsp;&middot;&nbsp; patentprecheck.com</p>
+</footer>
+
+</body>
+</html>
