@@ -14,12 +14,16 @@
     "pg": "^8.12.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
     "eslint": "^9.0.0",
+    "globals": "^15.0.0",
     "prettier": "^3.3.0"
   },
   "scripts": {
-    "lint": "eslint backend/",
-    "format": "prettier --write backend/",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "node scripts/syntax-check.js",
     "db:up": "docker compose -f infra/docker/docker-compose.yml up -d",
     "db:down": "docker compose -f infra/docker/docker-compose.yml down",
     "db:logs": "docker compose -f infra/docker/docker-compose.yml logs -f postgres",

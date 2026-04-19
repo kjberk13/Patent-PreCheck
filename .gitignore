@@ -30,6 +30,7 @@ dist/
 build/
 .next/
 .cache/
+coverage/
 
 # Netlify
 .netlify/

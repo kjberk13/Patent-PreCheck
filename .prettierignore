@@ -1,0 +1,20 @@
+node_modules/
+coverage/
+dist/
+package-lock.json
+
+# reference material — don't reformat
+handoff/
+
+# pre-existing assets authored outside Phase 2.1; reformatting risks drift
+apps/website/
+backend/patentability/
+backend/legal-intel/
+
+# pre-existing top-level docs (preserve authoring formatting)
+CLAUDE_CODE_BRIEF.md
+README.md
+
+# env files
+.env
+.env.*
