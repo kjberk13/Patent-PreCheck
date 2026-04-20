@@ -277,33 +277,37 @@ test('GitHub worker retries 503 then succeeds', async () => {
 // PatentsView
 // =====================================================================
 
-function pvFixture(ids) {
+// ODP response shape (best-effort). `results` is the most likely
+// wrapper for a modern REST search API. `applicationNumber` is the
+// primary id; fields below use the names most consistent with USPTO's
+// own schema conventions.
+function odpFixture(ids) {
   return {
-    patents: ids.map((id, i) => ({
-      patent_id: String(id),
-      patent_title: `Method and System for ${id}`,
-      patent_abstract: `Abstract describing patent ${id} in detail.`,
-      patent_date: '2024-06-01',
-      cpc_current: [{ cpc_group_id: 'G06F' }],
-      assignees: [{ assignee_organization: `Co ${i}` }],
+    results: ids.map((id, i) => ({
+      applicationNumber: String(id),
+      inventionTitle: `Method and System for ${id}`,
+      abstract: `Abstract describing application ${id} in detail.`,
+      filingDate: '2024-06-01',
+      cpcClassifications: [{ symbol: 'G06F' }],
+      applicants: [{ name: `Co ${i}` }],
     })),
-    count: ids.length,
-    total_hits: ids.length,
+    pagination: { total: ids.length, offset: 0, limit: ids.length },
   };
 }
 
-test('PatentsView worker: fetch → parse → embed → upsert → log', async () => {
-  // The worker must send the API key as X-Api-Key on every request.
-  nock('https://search.patentsview.org', {
+test('USPTO ODP worker: fetch → parse → embed → upsert → log', async () => {
+  // The worker must send the API key as X-Api-Key on every request
+  // to api.uspto.gov (the ODP base).
+  nock('https://api.uspto.gov', {
     reqheaders: { 'x-api-key': 'uspto-test-key' },
   })
-    .post('/api/v1/patent/')
-    .reply(200, pvFixture([11000001, 11000002, 11000003]));
-  nock('https://search.patentsview.org', {
+    .post('/api/v1/patent/applications/search')
+    .reply(200, odpFixture([11000001, 11000002, 11000003]));
+  nock('https://api.uspto.gov', {
     reqheaders: { 'x-api-key': 'uspto-test-key' },
   })
-    .post('/api/v1/patent/')
-    .reply(200, pvFixture([]));
+    .post('/api/v1/patent/applications/search')
+    .reply(200, odpFixture([]));
 
   const persistence = new MemoryWorkerPersistence();
   const embeddings = new FakeEmbeddings();
@@ -329,10 +333,52 @@ test('PatentsView worker: fetch → parse → embed → upsert → log', async (
   assert.match(docs[0].url, /patents\.google\.com\/patent\/US/);
 
   const run = persistence.getRuns()[0];
-  assert.equal(run.metadata.cursor.lastPatentId, '11000003');
+  assert.equal(run.metadata.cursor.offset, 3);
 });
 
-test('PatentsView worker throws SourceApiAuthError when USPTO_API_KEY is missing', async () => {
+test('USPTO ODP worker: parseDocument is defensive against legacy field names', () => {
+  // If USPTO ships back a payload with PatentsView-style keys, the
+  // worker should still parse it rather than throwing.
+  const worker = new PatentsViewWorker({
+    persistence: new MemoryWorkerPersistence(),
+    embeddings: new FakeEmbeddings(),
+    logger: () => {},
+    sleep: () => Promise.resolve(),
+    apiKey: 'x',
+  });
+  const doc = worker.parseDocument({
+    patent_id: '99999999',
+    patent_title: 'Legacy Title',
+    patent_abstract: 'Legacy abstract.',
+    patent_date: '2020-01-01',
+    cpc_current: [{ cpc_group_id: 'G06N' }],
+    assignees: [{ assignee_organization: 'Acme' }],
+  });
+  assert.equal(doc.native_id, '99999999');
+  assert.equal(doc.title, 'Legacy Title');
+  assert.equal(doc.published_at, '2020-01-01');
+});
+
+test('USPTO ODP worker: honours USPTO_ODP_ENDPOINT override', async () => {
+  nock('https://custom.uspto.example', {
+    reqheaders: { 'x-api-key': 'k' },
+  })
+    .post('/v2/search')
+    .reply(200, odpFixture([]));
+
+  const worker = new PatentsViewWorker({
+    persistence: new MemoryWorkerPersistence(),
+    embeddings: new FakeEmbeddings(),
+    logger: () => {},
+    sleep: () => Promise.resolve(),
+    apiKey: 'k',
+    endpoint: 'https://custom.uspto.example/v2/search',
+  });
+  const result = await worker.run({ mode: 'delta' });
+  assert.equal(result.status, 'success');
+});
+
+test('USPTO ODP worker throws SourceApiAuthError when USPTO_API_KEY is missing', async () => {
   const persistence = new MemoryWorkerPersistence();
   const embeddings = new FakeEmbeddings();
   const logger = capturingLogger();
@@ -349,16 +395,16 @@ test('PatentsView worker throws SourceApiAuthError when USPTO_API_KEY is missing
     (err) => {
       assert.ok(err instanceof SourceApiAuthError);
       assert.match(err.message, /check your USPTO_API_KEY/);
-      assert.match(err.message, /developer\.uspto\.gov/);
+      assert.match(err.message, /data\.uspto\.gov/);
       return true;
     },
   );
   assert.equal(logger.byEvent('auth_failure').length, 1);
 });
 
-test('PatentsView worker surfaces a migration hint on HTTP 410', async () => {
-  nock('https://search.patentsview.org')
-    .post('/api/v1/patent/')
+test('USPTO ODP worker surfaces a migration hint on HTTP 410', async () => {
+  nock('https://api.uspto.gov')
+    .post('/api/v1/patent/applications/search')
     .reply(410, 'Gone — endpoint retired');
 
   const persistence = new MemoryWorkerPersistence();
@@ -377,8 +423,8 @@ test('PatentsView worker surfaces a migration hint on HTTP 410', async () => {
     () => worker.run({ mode: 'delta' }),
     (err) => {
       assert.match(err.message, /HTTP 410 Gone/);
-      assert.match(err.message, /PATENTSVIEW_ENDPOINT/);
-      assert.match(err.message, /developer\.uspto\.gov/);
+      assert.match(err.message, /USPTO_ODP_ENDPOINT/);
+      assert.match(err.message, /data\.uspto\.gov/);
       return true;
     },
   );

@@ -6,6 +6,14 @@ End-to-end runbook for a production-like deploy. Three surfaces:
 - **Netlify** — static site + `analyze` serverless function
 - **Railway** — ingestion worker host (daily deltas, ad-hoc backfills, health-ping cron)
 
+> **USPTO API migration note (2025-2026).** The legacy PatentsView API
+> (`search.patentsview.org`) was retired 2025-05-01 and now returns HTTP 410. USPTO migrated the service to the Open Data Portal at
+> **data.uspto.gov** on 2026-03-20. The `uspto-patentsview` worker now
+> talks to `api.uspto.gov` and requires an API key (`USPTO_API_KEY`)
+> obtained from the Developer Portal. The source-id stays
+> `uspto-patentsview` for registry stability; the service behind it is
+> the ODP.
+
 ## Architecture at a glance
 
 ```
@@ -115,20 +123,20 @@ Function bundle is ~1.2 MB zipped (well under 50 MB limit). Cold start dominated
 
 Same LLM + embedding + database vars as Netlify, plus ingestion source tokens:
 
-| Key                                                             | Notes                                                                                                       |
-| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                                                  | Neon **direct** (not pooled) — `pg.Pool` wants the direct endpoint                                          |
-| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`                          | —                                                                                                           |
-| `VOYAGE_API_KEY`, `OPENAI_API_KEY` _(optional)_                 | —                                                                                                           |
-| `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS` | same values as Netlify                                                                                      |
-| `GITHUB_TOKEN`                                                  | PAT with `public_repo` read — **required** by the github-search worker                                      |
-| `USPTO_API_KEY`                                                 | USPTO Open Data Portal key — **required** by the uspto-patentsview worker (register at developer.uspto.gov) |
-| `PATENTSVIEW_ENDPOINT` _(optional)_                             | Override the PatentsView base URL if USPTO moves it under ODP                                               |
-| `SEMANTIC_SCHOLAR_API_KEY`                                      | When the semantic-scholar worker lands                                                                      |
-| `IEEE_API_KEY`                                                  | When the ieee worker lands                                                                                  |
-| `BIGQUERY_PROJECT_ID`, `GOOGLE_APPLICATION_CREDENTIALS`         | When the google-patents worker lands                                                                        |
-| `LOG_LEVEL`                                                     | `info` in production, `debug` when you need cache-hit/miss counts                                           |
-| `HEALTH_CHECK_URL`                                              | `https://patentprecheck.com/.netlify/functions/analyze`                                                     |
+| Key                                                             | Notes                                                                                                                                                                                                                     |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                                  | Neon **direct** (not pooled) — `pg.Pool` wants the direct endpoint                                                                                                                                                        |
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`                          | —                                                                                                                                                                                                                         |
+| `VOYAGE_API_KEY`, `OPENAI_API_KEY` _(optional)_                 | —                                                                                                                                                                                                                         |
+| `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS` | same values as Netlify                                                                                                                                                                                                    |
+| `GITHUB_TOKEN`                                                  | PAT with `public_repo` read — **required** by the github-search worker                                                                                                                                                    |
+| `USPTO_API_KEY`                                                 | USPTO Open Data Portal key — **required** by the uspto-patentsview worker. Register at **data.uspto.gov → Developer Portal**. Free tier: 45 req/min. Key does not currently expire. Sent as `X-Api-Key` on every request. |
+| `USPTO_ODP_ENDPOINT` _(optional)_                               | Override the ODP search URL if USPTO moves it again (worker also accepts `PATENTSVIEW_ENDPOINT` as a backward-compat alias)                                                                                               |
+| `SEMANTIC_SCHOLAR_API_KEY`                                      | When the semantic-scholar worker lands                                                                                                                                                                                    |
+| `IEEE_API_KEY`                                                  | When the ieee worker lands                                                                                                                                                                                                |
+| `BIGQUERY_PROJECT_ID`, `GOOGLE_APPLICATION_CREDENTIALS`         | When the google-patents worker lands                                                                                                                                                                                      |
+| `LOG_LEVEL`                                                     | `info` in production, `debug` when you need cache-hit/miss counts                                                                                                                                                         |
+| `HEALTH_CHECK_URL`                                              | `https://patentprecheck.com/.netlify/functions/analyze`                                                                                                                                                                   |
 
 ### Cron schedules
 

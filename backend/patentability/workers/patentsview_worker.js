@@ -1,24 +1,38 @@
 'use strict';
 
 // =====================================================================
-// USPTO PatentsView worker — Tier A
+// USPTO Open Data Portal worker — Tier A
 //
-// IMPORTANT — MIGRATION NOTICE (USPTO, Oct 2024):
-//   The PatentsView API was merged into USPTO's Open Data Portal. The
-//   previous anonymous endpoint now returns HTTP 410 Gone. Operators
-//   must:
-//     1. Register at https://developer.uspto.gov
-//     2. Obtain an API key (free tier available)
-//     3. Set USPTO_API_KEY in the worker host env
-//     4. If USPTO has also changed the base URL (they may move it to
-//        api.uspto.gov), override PATENTSVIEW_ENDPOINT accordingly.
+// BACKGROUND
+//   • The legacy PatentsView API was retired 2025-05-01 (returns HTTP
+//     410 Gone). USPTO migrated the service to the Open Data Portal
+//     at data.uspto.gov on 2026-03-20. All patentsview.org URLs now
+//     redirect to data.uspto.gov.
+//   • This worker keeps source_id 'uspto-patentsview' for registry
+//     stability (avoids needing to migrate any row already written
+//     under that id). The external-facing service is USPTO ODP.
 //
-//   The worker sends the key as X-Api-Key on every request. Without
-//   the key the endpoint returns 401; the worker surfaces that as
-//   SourceApiAuthError with a pointer back to developer.uspto.gov.
+// AUTH (from ODP docs, Getting Started → Authentication)
+//   • Header: `X-Api-Key: <key>` on every request.
+//   • Key obtained at data.uspto.gov → Developer Portal → Register.
+//   • Free tier: 45 requests per minute (≈ 0.75 rps).
+//   • Key does not currently expire.
 //
-// Rate limit: generous with a key; default 2 rps.
-// Cursor shape: { lastPatentId: '<string>' }
+// IMPLEMENTATION STATUS — READ BEFORE EDITING
+//   The default endpoint path and request/response schema below are
+//   BEST-EFFORT GUESSES at the Patent File Wrapper search API. They
+//   have not been verified against live ODP responses. The worker is
+//   deliberately defensive so it can be adapted via config without a
+//   code change when the real schema is observed:
+//
+//     USPTO_ODP_ENDPOINT       override the POST URL entirely
+//     PATENTSVIEW_ENDPOINT     backward-compat alias for USPTO_ODP_ENDPOINT
+//
+//   parseDocument() also tries multiple plausible field names so
+//   close-but-not-exact schema differences parse successfully.
+//
+// Rate limit: 0.7 rps (slightly under 0.75 to stay clear of the cap).
+// Cursor shape: { offset: <nonNegative integer> }
 // =====================================================================
 
 const { BaseWorker } = require('../../shared/base_worker.js');
@@ -29,21 +43,28 @@ const {
 } = require('../../shared/worker_errors.js');
 
 const SOURCE_ID = 'uspto-patentsview';
-// Default endpoint as of the v1 POST-JSON API. USPTO may have moved it
-// under the ODP umbrella; override via PATENTSVIEW_ENDPOINT if a 410
-// comes back and developer.uspto.gov points you at a different URL.
-const DEFAULT_ENDPOINT = 'https://search.patentsview.org/api/v1/patent/';
-const DEFAULT_PAGE_SIZE = 500;
+
+// Best-effort default — likely the Patent File Wrapper search endpoint.
+// Override via USPTO_ODP_ENDPOINT in the environment if this is wrong.
+const DEFAULT_ODP_ENDPOINT = 'https://api.uspto.gov/api/v1/patent/applications/search';
+const DEFAULT_PAGE_SIZE = 100;
 const DEFAULT_CPC_GROUPS = ['G06F', 'G06N', 'G06Q', 'H04L'];
 const DEFAULT_BACKFILL_FROM = '2015-01-01';
 
+// 45 req/min = 0.75 rps. Use 0.7 for safety.
+const DEFAULT_RPS = 0.7;
+
 class PatentsViewWorker extends BaseWorker {
   constructor(opts = {}) {
-    super({ requestsPerSecond: 2, ...opts });
+    super({ requestsPerSecond: DEFAULT_RPS, ...opts });
     this.source_id = SOURCE_ID;
     this.tier = 'A';
     this.authEnvVar = 'USPTO_API_KEY';
-    this.endpoint = opts.endpoint || process.env.PATENTSVIEW_ENDPOINT || DEFAULT_ENDPOINT;
+    this.endpoint =
+      opts.endpoint ||
+      process.env.USPTO_ODP_ENDPOINT ||
+      process.env.PATENTSVIEW_ENDPOINT ||
+      DEFAULT_ODP_ENDPOINT;
     this.apiKey = opts.apiKey ?? process.env.USPTO_API_KEY ?? null;
     this.pageSize = opts.pageSize || DEFAULT_PAGE_SIZE;
     this.cpcGroups = opts.cpcGroups || DEFAULT_CPC_GROUPS;
@@ -56,13 +77,14 @@ class PatentsViewWorker extends BaseWorker {
       throw new SourceApiAuthError(
         this.source_id,
         this.authEnvVar,
-        'register at developer.uspto.gov to obtain a free API key, then set USPTO_API_KEY in the worker host env',
+        'register at data.uspto.gov (Developer Portal) to obtain an API key, then set USPTO_API_KEY in the worker host env',
       );
     }
 
-    let lastId = (cursor && cursor.lastPatentId) || null;
+    let offset = (cursor && cursor.offset) || 0;
+
     while (true) {
-      const query = this._buildQuery(mode, lastId);
+      const body = this._buildQuery(mode, offset);
 
       let res;
       try {
@@ -72,18 +94,16 @@ class PatentsViewWorker extends BaseWorker {
             'Content-Type': 'application/json',
             'X-Api-Key': this.apiKey,
           },
-          body: JSON.stringify(query),
+          body: JSON.stringify(body),
         });
       } catch (err) {
-        // A 410 means USPTO has moved or retired this endpoint entirely.
-        // Surface a specific, actionable error instead of the generic
-        // "permanent HTTP 410" from classifyHttpError.
+        // 410 means USPTO retired even the ODP path we're on. Tell the
+        // operator how to override without a code change.
         if (err instanceof SourceApiPermanentError && err.status === 410) {
           throw new SourceApiPermanentError(
             `${this.source_id} endpoint returned HTTP 410 Gone (${this.endpoint}). ` +
-              'USPTO migrated PatentsView to the Open Data Portal in Oct 2024. ' +
-              'Check developer.uspto.gov for the current URL and set PATENTSVIEW_ENDPOINT ' +
-              'to override the default.',
+              'USPTO may have moved or retired this ODP endpoint again. Check data.uspto.gov ' +
+              '→ Developer Portal for the current URL and set USPTO_ODP_ENDPOINT to override.',
             { status: 410, body: err.body, source: this.source_id },
           );
         }
@@ -91,75 +111,183 @@ class PatentsViewWorker extends BaseWorker {
       }
 
       const payload = await res.json();
-      const patents = payload && payload.patents ? payload.patents : [];
-      if (patents.length === 0) return;
+      const items = unwrapItems(payload);
 
-      yield {
-        docs: patents,
-        nextCursor: { lastPatentId: patents[patents.length - 1].patent_id },
-      };
+      if (items.length === 0) return;
 
-      lastId = patents[patents.length - 1].patent_id;
-      if (patents.length < this.pageSize) return;
+      offset += items.length;
+      yield { docs: items, nextCursor: { offset } };
+
+      if (items.length < this.pageSize) return;
     }
   }
 
+  // Defensive parser. Tries multiple plausible field names so
+  // close-but-not-exact schema differences still parse. If all
+  // attempts fail, throws DocumentValidationError which the base
+  // class counts toward the skip-rate guardrail.
   parseDocument(raw) {
-    const nativeId = raw && raw.patent_id;
-    if (!nativeId) {
-      throw new DocumentValidationError('missing patent_id', { nativeId, field: 'patent_id' });
-    }
-    const title = (raw.patent_title || '').trim();
-    if (!title) {
-      throw new DocumentValidationError('missing patent_title', {
-        nativeId,
-        field: 'patent_title',
+    if (!raw || typeof raw !== 'object') {
+      throw new DocumentValidationError('non-object ODP response item', {
+        nativeId: null,
+        field: 'root',
       });
     }
-    const abstract = (raw.patent_abstract || '').trim();
+
+    const nativeId = firstNonEmpty(
+      raw.applicationNumber,
+      raw.publicationNumber,
+      raw.patentNumber,
+      raw.patent_id,
+      raw.applicationNumberText,
+      raw.documentNumber,
+    );
+    if (!nativeId) {
+      throw new DocumentValidationError('missing application/patent id', {
+        nativeId: null,
+        field: 'applicationNumber/publicationNumber/patentNumber',
+      });
+    }
+
+    const title = stringify(
+      firstNonEmpty(
+        raw.inventionTitle,
+        raw.patent_title,
+        raw.title,
+        raw.inventionSubjectMatterCategory?.inventionTitle,
+      ),
+    );
+    if (!title) {
+      throw new DocumentValidationError('missing invention title', {
+        nativeId,
+        field: 'inventionTitle/patent_title/title',
+      });
+    }
+
+    const abstract = stringify(
+      firstNonEmpty(raw.abstract, raw.abstractText, raw.patent_abstract, raw.description),
+    );
+
+    const publishedAt = stringify(
+      firstNonEmpty(
+        raw.filingDate,
+        raw.publicationDate,
+        raw.patentDate,
+        raw.patent_date,
+        raw.earliestPublicationDate,
+      ),
+    );
+
+    const cpcClassifications = firstNonEmpty(
+      raw.cpcClassifications,
+      raw.cpcClassificationBag,
+      raw.cpc_current,
+    );
+    const assignees = firstNonEmpty(
+      raw.applicants,
+      raw.assignees,
+      raw.applicantBag,
+      raw.assigneeBag,
+    );
+
     const embedText = `${title}\n\n${abstract}`.trim();
     if (embedText.length === 0) {
       throw new DocumentValidationError('empty embedText', { nativeId, field: 'embedText' });
     }
+
     return {
       native_id: String(nativeId),
       doc_type: 'patent',
       title,
       abstract,
-      url: `https://patents.google.com/patent/US${nativeId}`,
-      published_at: raw.patent_date || null,
+      url: `https://patents.google.com/patent/US${String(nativeId).replace(/[^0-9A-Za-z]/g, '')}`,
+      published_at: publishedAt || null,
       language: 'en',
       metadata: {
-        cpc_groups: raw.cpc_current || [],
-        assignees: raw.assignees || [],
+        cpc_classifications: cpcClassifications || [],
+        applicants: assignees || [],
       },
       embedText,
     };
   }
 
-  _buildQuery(mode, lastPatentId) {
-    const dateFilter =
+  _buildQuery(mode, offset) {
+    const from =
       mode === 'delta'
-        ? { _gte: { patent_date: isoDateDaysAgo(this.now(), this.deltaLookbackDays) } }
-        : { _gte: { patent_date: this.backfillFrom } };
+        ? isoDateDaysAgo(this.now(), this.deltaLookbackDays)
+        : this.backfillFrom;
 
-    const cpcFilter = this.cpcGroups.map((g) => ({ 'cpc_current.cpc_group_id': g }));
-
-    const q = {
-      _and: [
-        dateFilter,
-        { _or: cpcFilter },
-        ...(lastPatentId ? [{ _gt: { patent_id: lastPatentId } }] : []),
-      ],
-    };
-
+    // Best-effort request shape — follows common REST search-API
+    // conventions. If the ODP expects a different JSON layout, this
+    // is the place to adapt (or override the whole worker).
     return {
-      q,
-      f: ['patent_id', 'patent_title', 'patent_abstract', 'patent_date', 'cpc_current', 'assignees'],
-      s: [{ patent_id: 'asc' }],
-      o: { size: this.pageSize },
+      filter: {
+        filingDateRange: { from, to: todayIso(this.now()) },
+        cpcClassifications: this.cpcGroups,
+      },
+      pagination: {
+        offset,
+        limit: this.pageSize,
+      },
+      fields: [
+        'applicationNumber',
+        'publicationNumber',
+        'patentNumber',
+        'inventionTitle',
+        'abstract',
+        'filingDate',
+        'publicationDate',
+        'cpcClassifications',
+        'applicants',
+      ],
+      sort: [{ field: 'applicationNumber', direction: 'asc' }],
     };
   }
+}
+
+// ---------------------------------------------------------------------
+// Response unwrap helpers
+// ---------------------------------------------------------------------
+
+// ODP payload shape isn't verified. Try the common wrappers; fall back
+// to the payload itself if it's already an array.
+function unwrapItems(payload) {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload;
+  const candidates = [
+    payload.results,
+    payload.items,
+    payload.data,
+    payload.patents,
+    payload.applications,
+    payload.documents,
+  ];
+  for (const c of candidates) {
+    if (Array.isArray(c)) return c;
+  }
+  return [];
+}
+
+function firstNonEmpty(...values) {
+  for (const v of values) {
+    if (v === undefined || v === null) continue;
+    if (typeof v === 'string' && v.trim().length === 0) continue;
+    if (Array.isArray(v) && v.length === 0) continue;
+    return v;
+  }
+  return null;
+}
+
+function stringify(v) {
+  if (v == null) return '';
+  if (typeof v === 'string') return v.trim();
+  if (Array.isArray(v)) return v.map(stringify).filter(Boolean).join(' ').trim();
+  if (typeof v === 'object') {
+    // Common wrapper pattern: { text: "..." } or { value: "..." }.
+    if (typeof v.text === 'string') return v.text.trim();
+    if (typeof v.value === 'string') return v.value.trim();
+  }
+  return String(v).trim();
 }
 
 function isoDateDaysAgo(now, days) {
@@ -168,4 +296,8 @@ function isoDateDaysAgo(now, days) {
   return d.toISOString().slice(0, 10);
 }
 
-module.exports = { PatentsViewWorker, SOURCE_ID };
+function todayIso(now) {
+  return new Date(now).toISOString().slice(0, 10);
+}
+
+module.exports = { PatentsViewWorker, SOURCE_ID, DEFAULT_ODP_ENDPOINT };
