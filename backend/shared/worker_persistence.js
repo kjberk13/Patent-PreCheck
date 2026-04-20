@@ -59,7 +59,12 @@ class PostgresWorkerPersistence {
   }
 
   async tryAdvisoryLock(sourceId) {
-    const client = await this.pool.connect();
+    let client;
+    try {
+      client = await this.pool.connect();
+    } catch (err) {
+      throw wrapDbError(err, 'tryAdvisoryLock (pool.connect)');
+    }
     try {
       const { rows } = await client.query('SELECT pg_try_advisory_lock(hashtext($1)) AS acquired', [
         sourceId,
@@ -310,11 +315,39 @@ class MemoryWorkerPersistence {
   }
 }
 
+// Errors whose Node code indicates a networking/DNS failure rather than a
+// SQL-level problem. When we see these, we append the parsed DATABASE_URL
+// hostname to the DatabaseError message so operators can see at a glance
+// which hostname pg tried to reach.
+const NETWORKING_ERROR_CODES = new Set([
+  'ENOTFOUND',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'ECONNRESET',
+  'EAI_AGAIN',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+]);
+
 function wrapDbError(err, op) {
   const message = err && err.message ? err.message : String(err);
-  const wrapped = new DatabaseError(`${op} failed: ${message}`);
+  const code = err && err.code ? err.code : null;
+  let hint = '';
+  if (code && NETWORKING_ERROR_CODES.has(code)) {
+    hint = ` [hint: DATABASE_URL host = "${safeDbHost()}" — check Railway env]`;
+  }
+  const wrapped = new DatabaseError(`${op} failed: ${message}${hint}`);
   wrapped.cause = err;
+  wrapped.code = code;
   return wrapped;
+}
+
+function safeDbHost() {
+  try {
+    return new URL(process.env.DATABASE_URL || '').hostname || '(unset)';
+  } catch {
+    return '(unparseable)';
+  }
 }
 
 module.exports = {

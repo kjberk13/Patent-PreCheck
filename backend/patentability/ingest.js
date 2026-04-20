@@ -95,13 +95,133 @@ function printRegistry() {
 }
 
 async function buildRunnerContext() {
-  if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL is not set; copy .env.example to .env first');
-  }
+  const validated = validateDatabaseUrl(process.env.DATABASE_URL);
+  logStartup(validated);
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  await preflightDatabaseConnection(pool);
   const persistence = new PostgresWorkerPersistence(pool);
   const embeddings = new Embeddings({ pgPool: pool });
   return { pool, persistence, embeddings };
+}
+
+// ---------------------------------------------------------------------
+// DATABASE_URL validation + startup diagnostics.
+// ---------------------------------------------------------------------
+
+const SUSPICIOUS_HOSTS_WITHOUT_PORT = new Set([
+  'base',
+  'localhost',
+  '127.0.0.1',
+  '0.0.0.0',
+  'undefined',
+  'null',
+  '',
+]);
+
+function validateDatabaseUrl(url) {
+  if (!url || typeof url !== 'string' || url.trim().length === 0) {
+    throw new Error(
+      'DATABASE_URL is not set. Set it in Railway environment variables to the Neon direct endpoint ' +
+        '(postgresql://user:pass@ep-...neon.tech/db?sslmode=require).',
+    );
+  }
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch (err) {
+    throw new Error(
+      `DATABASE_URL is not a parseable URL (${err.message}). Value (password redacted): ${redactPassword(url)}. ` +
+        'Check the Railway environment variable for typos or truncation.',
+    );
+  }
+  if (!parsed.hostname) {
+    throw new Error(
+      `DATABASE_URL has no hostname. Value (password redacted): ${redactPassword(url)}. ` +
+        'Expected postgresql://user:pass@HOST/db.',
+    );
+  }
+  if (SUSPICIOUS_HOSTS_WITHOUT_PORT.has(parsed.hostname.toLowerCase()) && parsed.port === '') {
+    throw new Error(
+      `DATABASE_URL hostname "${parsed.hostname}" looks invalid. ` +
+        'This often happens when a Railway variable reference failed to substitute ' +
+        '(e.g. ${{Postgres.DATABASE_URL}} pointing at a non-existent service). ' +
+        `Full value (password redacted): ${redactPassword(url)}. ` +
+        'Expected a full Postgres URL with a real hostname like "ep-....neon.tech".',
+    );
+  }
+  return {
+    hostname: parsed.hostname,
+    port: parsed.port || '(default)',
+    database: parsed.pathname.replace(/^\//, '') || '(none)',
+    username: parsed.username || '(none)',
+    sslmode: parsed.searchParams.get('sslmode') || '(unset)',
+  };
+}
+
+function redactPassword(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.password) parsed.password = '***';
+    return parsed.toString();
+  } catch {
+    // URL unparseable; crude fallback.
+    return url.replace(/:\/\/([^:/@]+):[^@]+@/, '://$1:***@');
+  }
+}
+
+function logStartup(validated) {
+  // Log a redacted summary of what pg will see, plus any PG* env vars that
+  // could override the connection string (pg's Client falls back to these
+  // when a parsed field is missing). Helps pin down env-vs-URL conflicts.
+  const pgEnv = {};
+  for (const key of ['PGHOST', 'PGPORT', 'PGUSER', 'PGDATABASE', 'PGSSLMODE']) {
+    if (process.env[key] !== undefined) pgEnv[key] = process.env[key];
+  }
+  log('info', {
+    event: 'ingest_startup',
+    database_url_hostname: validated.hostname,
+    database_url_port: validated.port,
+    database_url_database: validated.database,
+    database_url_username: validated.username,
+    database_url_sslmode: validated.sslmode,
+    pg_env_overrides: Object.keys(pgEnv).length > 0 ? pgEnv : '(none)',
+    node_version: process.version,
+  });
+}
+
+async function preflightDatabaseConnection(pool) {
+  let rows;
+  try {
+    const result = await pool.query('SELECT 1 AS ok');
+    rows = result.rows;
+  } catch (err) {
+    const underlying = err && err.message ? err.message : String(err);
+    const code = err && err.code ? err.code : null;
+    const hostname = redactedUrlHostname();
+    throw new Error(
+      `DATABASE_URL preflight failed — could not run SELECT 1 against the connection. ` +
+        `Parsed hostname: "${hostname}". Underlying error: ${underlying}` +
+        (code ? ` (code=${code})` : '') +
+        '. Check the Railway DATABASE_URL env var: hostname, credentials, and sslmode=require.',
+    );
+  }
+  if (!rows || rows[0]?.ok !== 1) {
+    throw new Error('DATABASE_URL preflight returned an unexpected response; aborting.');
+  }
+  log('info', { event: 'db_preflight_ok' });
+}
+
+function redactedUrlHostname() {
+  try {
+    return new URL(process.env.DATABASE_URL || '').hostname || '(unset)';
+  } catch {
+    return '(unparseable)';
+  }
+}
+
+function log(level, event) {
+  const fn = level === 'error' ? console.error : console.log;
+  fn(JSON.stringify({ level, ts: new Date().toISOString(), ...event }));
 }
 
 async function runWorker(entry, { persistence, embeddings }, opts) {
@@ -197,4 +317,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { parseArgs, runWorker };
+module.exports = { parseArgs, runWorker, validateDatabaseUrl, redactPassword };

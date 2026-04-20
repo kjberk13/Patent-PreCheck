@@ -184,6 +184,52 @@ railway run npm run ingest -- --source=arxiv --mode=backfill --resume --force
 
 ---
 
+## Troubleshooting ingestion crashes
+
+The ingest CLI logs a single `ingest_startup` line before touching the DB. That
+line tells you, at a glance, what `pg.Pool` is actually seeing:
+
+```json
+{
+  "level": "info",
+  "event": "ingest_startup",
+  "database_url_hostname": "...",
+  "database_url_port": "...",
+  "pg_env_overrides": "(none)",
+  "node_version": "v20..."
+}
+```
+
+Then it runs a `SELECT 1` preflight. If that fails, you get:
+
+```
+DATABASE_URL preflight failed — could not run SELECT 1 against the connection.
+Parsed hostname: "<actual-host>". Underlying error: <pg error> (code=<code>).
+Check the Railway DATABASE_URL env var: hostname, credentials, and sslmode=require.
+```
+
+That message contains the exact hostname pg tried to reach — if it doesn't
+match the Neon endpoint you set in Railway, the env var itself is wrong.
+
+Common fixes:
+
+- Hostname mismatch → re-paste the Neon direct URL into Railway env vars.
+- `code=ENOTFOUND` → hostname resolves to nothing. Likely a typo, truncation,
+  or a Railway variable reference (`${{ServiceName.VAR}}`) that didn't
+  resolve.
+- `code=ECONNREFUSED` → hostname resolved but Neon refused the connection.
+  Check Neon project isn't suspended and `sslmode=require` is in the URL.
+- `code=28P01` → authentication failed. Credentials in the URL are wrong.
+- `pg_env_overrides` contains keys like `PGHOST` → one of those is shadowing
+  the connection string. Remove the extra PG\* env var from Railway.
+
+The validator also rejects obviously-broken URLs at startup before preflight:
+empty hostname, literal "base" / "undefined" / "null" / "localhost" without
+a port, or anything that isn't a parseable URL. Those cases produce a
+specific error pointing at the Railway var to fix.
+
+---
+
 ## Observability (v1)
 
 - **Netlify function logs** — JSON-per-line; searchable at Site → Functions → analyze → Logs.
