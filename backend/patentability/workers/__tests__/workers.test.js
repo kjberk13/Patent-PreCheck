@@ -293,10 +293,15 @@ function pvFixture(ids) {
 }
 
 test('PatentsView worker: fetch → parse → embed → upsert → log', async () => {
-  nock('https://search.patentsview.org')
+  // The worker must send the API key as X-Api-Key on every request.
+  nock('https://search.patentsview.org', {
+    reqheaders: { 'x-api-key': 'uspto-test-key' },
+  })
     .post('/api/v1/patent/')
     .reply(200, pvFixture([11000001, 11000002, 11000003]));
-  nock('https://search.patentsview.org')
+  nock('https://search.patentsview.org', {
+    reqheaders: { 'x-api-key': 'uspto-test-key' },
+  })
     .post('/api/v1/patent/')
     .reply(200, pvFixture([]));
 
@@ -310,6 +315,7 @@ test('PatentsView worker: fetch → parse → embed → upsert → log', async (
     logger: logger.fn,
     sleep: () => Promise.resolve(),
     pageSize: 10,
+    apiKey: 'uspto-test-key',
   });
 
   const result = await worker.run({ mode: 'delta', limit: 3 });
@@ -324,4 +330,56 @@ test('PatentsView worker: fetch → parse → embed → upsert → log', async (
 
   const run = persistence.getRuns()[0];
   assert.equal(run.metadata.cursor.lastPatentId, '11000003');
+});
+
+test('PatentsView worker throws SourceApiAuthError when USPTO_API_KEY is missing', async () => {
+  const persistence = new MemoryWorkerPersistence();
+  const embeddings = new FakeEmbeddings();
+  const logger = capturingLogger();
+  const worker = new PatentsViewWorker({
+    persistence,
+    embeddings,
+    logger: logger.fn,
+    sleep: () => Promise.resolve(),
+    apiKey: null,
+  });
+
+  await assert.rejects(
+    () => worker.run({ mode: 'delta' }),
+    (err) => {
+      assert.ok(err instanceof SourceApiAuthError);
+      assert.match(err.message, /check your USPTO_API_KEY/);
+      assert.match(err.message, /developer\.uspto\.gov/);
+      return true;
+    },
+  );
+  assert.equal(logger.byEvent('auth_failure').length, 1);
+});
+
+test('PatentsView worker surfaces a migration hint on HTTP 410', async () => {
+  nock('https://search.patentsview.org')
+    .post('/api/v1/patent/')
+    .reply(410, 'Gone — endpoint retired');
+
+  const persistence = new MemoryWorkerPersistence();
+  const embeddings = new FakeEmbeddings();
+  const logger = capturingLogger();
+  const worker = new PatentsViewWorker({
+    persistence,
+    embeddings,
+    logger: logger.fn,
+    sleep: () => Promise.resolve(),
+    maxHttpAttempts: 1, // 410 is permanent anyway, but keep the test fast
+    apiKey: 'uspto-test-key',
+  });
+
+  await assert.rejects(
+    () => worker.run({ mode: 'delta' }),
+    (err) => {
+      assert.match(err.message, /HTTP 410 Gone/);
+      assert.match(err.message, /PATENTSVIEW_ENDPOINT/);
+      assert.match(err.message, /developer\.uspto\.gov/);
+      return true;
+    },
+  );
 });

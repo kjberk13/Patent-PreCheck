@@ -78,23 +78,61 @@ class CursorStaleError extends WorkerError {}
 
 const TRANSIENT_HTTP_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 
-function classifyHttpError(status, body, source, { authEnvVar } = {}) {
+function classifyHttpError(status, body, source, { authEnvVar, headers } = {}) {
   const trimmed = typeof body === 'string' ? truncate(body, 400) : undefined;
   if (status === 401 || status === 403) {
     return new SourceApiAuthError(source, authEnvVar || inferEnvVar(source), trimmed);
   }
   if (TRANSIENT_HTTP_STATUS.has(status)) {
-    return new SourceApiTransientError(`${source} transient HTTP ${status}`, {
+    const err = new SourceApiTransientError(`${source} transient HTTP ${status}`, {
       status,
       body: trimmed,
       source,
     });
+    if (status === 429 && headers) {
+      const retryAfter = parseRetryAfter(readHeader(headers, 'retry-after'));
+      if (retryAfter != null) err.retryAfterMs = retryAfter;
+    }
+    return err;
   }
   return new SourceApiPermanentError(`${source} permanent HTTP ${status}`, {
     status,
     body: trimmed,
     source,
   });
+}
+
+// Retry-After per RFC 9110: either an HTTP-date or a non-negative integer of
+// seconds. Returns milliseconds, or null if unparseable/missing.
+function parseRetryAfter(value) {
+  if (value == null) return null;
+  const str = String(value).trim();
+  if (str.length === 0) return null;
+  // Integer seconds path
+  if (/^\d+$/.test(str)) {
+    const seconds = Number(str);
+    if (!Number.isFinite(seconds) || seconds < 0) return null;
+    return Math.min(seconds * 1000, 10 * 60 * 1000); // cap at 10 min
+  }
+  // HTTP-date path
+  const when = Date.parse(str);
+  if (!Number.isFinite(when)) return null;
+  const ms = when - Date.now();
+  if (ms <= 0) return 0;
+  return Math.min(ms, 10 * 60 * 1000);
+}
+
+function readHeader(headers, name) {
+  if (!headers) return null;
+  if (typeof headers.get === 'function') return headers.get(name);
+  if (typeof headers === 'object') {
+    // plain-object headers (for tests)
+    const lower = name.toLowerCase();
+    for (const [k, v] of Object.entries(headers)) {
+      if (k.toLowerCase() === lower) return v;
+    }
+  }
+  return null;
 }
 
 function inferEnvVar(source) {
@@ -122,6 +160,7 @@ module.exports = {
   WorkerLockError,
   CursorStaleError,
   classifyHttpError,
+  parseRetryAfter,
   inferEnvVar,
   TRANSIENT_HTTP_STATUS,
 };

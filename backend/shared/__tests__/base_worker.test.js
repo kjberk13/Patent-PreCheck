@@ -434,3 +434,107 @@ test('classifyHttpError builds a helpful auth error message', () => {
   assert.equal(err.envVar, 'GITHUB_TOKEN');
   assert.match(err.message, /check your GITHUB_TOKEN/);
 });
+
+// ---------------------------------------------------------------------
+// Retry-After handling on 429
+// ---------------------------------------------------------------------
+
+const { parseRetryAfter } = require('../worker_errors.js');
+
+test('parseRetryAfter parses integer seconds', () => {
+  assert.equal(parseRetryAfter('30'), 30_000);
+  assert.equal(parseRetryAfter('0'), 0);
+});
+
+test('parseRetryAfter caps absurdly long waits at 10 minutes', () => {
+  assert.equal(parseRetryAfter('999999'), 10 * 60 * 1000);
+});
+
+test('parseRetryAfter returns null for garbage', () => {
+  assert.equal(parseRetryAfter(null), null);
+  assert.equal(parseRetryAfter(''), null);
+  assert.equal(parseRetryAfter('not-a-number'), null);
+});
+
+test('parseRetryAfter parses HTTP-date', () => {
+  const future = new Date(Date.now() + 5_000).toUTCString();
+  const ms = parseRetryAfter(future);
+  assert.ok(ms >= 4_000 && ms <= 6_000, `expected ~5000ms, got ${ms}`);
+});
+
+test('classifyHttpError on 429 extracts retryAfterMs from a plain-object headers map', () => {
+  const err = classifyHttpError(429, 'slow down', 'arxiv', {
+    headers: { 'Retry-After': '42' },
+  });
+  assert.ok(err instanceof SourceApiTransientError);
+  assert.equal(err.retryAfterMs, 42_000);
+});
+
+test('classifyHttpError on 429 extracts retryAfterMs from a Headers-like get()', () => {
+  const headers = {
+    get(name) {
+      return name.toLowerCase() === 'retry-after' ? '7' : null;
+    },
+  };
+  const err = classifyHttpError(429, 'throttled', 'arxiv', { headers });
+  assert.equal(err.retryAfterMs, 7_000);
+});
+
+test('classifyHttpError on 429 leaves retryAfterMs unset if header is missing', () => {
+  const err = classifyHttpError(429, '', 'arxiv', { headers: { get: () => null } });
+  assert.ok(err instanceof SourceApiTransientError);
+  assert.equal(err.retryAfterMs, undefined);
+});
+
+// ---------------------------------------------------------------------
+// 429 backoff — retry-after wins; 429 without header uses 30s base
+// ---------------------------------------------------------------------
+
+function makeBackoffWorker(overrides = {}) {
+  const persistence = new MemoryWorkerPersistence();
+  const embeddings = new FakeEmbeddings();
+  class MinimalWorker extends BaseWorker {
+    constructor(opts) {
+      super(opts);
+      this.source_id = 'test-source';
+      this.requestsPerSecond = 100;
+    }
+    async *pages() {}
+    parseDocument() {}
+  }
+  return new MinimalWorker({
+    persistence,
+    embeddings,
+    logger: () => {},
+    sleep: () => Promise.resolve(),
+    randomJitter: () => 0.5, // deterministic
+    baseBackoffMs: 500,
+    ...overrides,
+  });
+}
+
+test('_backoffMs honours retryAfterMs when present', () => {
+  const worker = makeBackoffWorker();
+  const err = new SourceApiTransientError('throttled', { status: 429 });
+  err.retryAfterMs = 8_000;
+  assert.equal(worker._backoffMs(1, err), 8_000);
+  assert.equal(
+    worker._backoffMs(3, err),
+    8_000,
+    'attempt number is irrelevant when server said so',
+  );
+});
+
+test('_backoffMs on 429 without retryAfter uses the 30s base, not the normal 500ms', () => {
+  const worker = makeBackoffWorker();
+  const err = new SourceApiTransientError('throttled', { status: 429 });
+  const delay = worker._backoffMs(1, err);
+  assert.ok(delay >= 25_000 && delay <= 35_000, `expected ~30s ±jitter, got ${delay}ms`);
+});
+
+test('_backoffMs on non-429 still uses the normal base backoff', () => {
+  const worker = makeBackoffWorker();
+  const err = new SourceApiTransientError('down', { status: 503 });
+  const delay = worker._backoffMs(1, err);
+  assert.ok(delay >= 400 && delay <= 700, `expected ~500ms, got ${delay}ms`);
+});

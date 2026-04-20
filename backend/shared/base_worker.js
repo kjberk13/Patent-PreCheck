@@ -321,6 +321,7 @@ class BaseWorker {
           }
           throw classifyHttpError(res.status, body, this.source_id, {
             authEnvVar: this.authEnvVar,
+            headers: res.headers,
           });
         }
         return res;
@@ -330,12 +331,14 @@ class BaseWorker {
         if (!retryable || attempt === this.maxHttpAttempts) {
           throw err;
         }
-        const delay = this._backoffMs(attempt);
+        const delay = this._backoffMs(attempt, err);
         this.logger('warn', {
           event: 'http_retry',
           source: this.source_id,
           attempt,
           next_delay_ms: delay,
+          status: err && err.status,
+          retry_after_ms: err && err.retryAfterMs,
           error: err.message,
         });
         await this._sleep(delay);
@@ -358,12 +361,24 @@ class BaseWorker {
     return false;
   }
 
-  _backoffMs(attempt) {
-    const base = this.baseBackoffMs * 2 ** (attempt - 1);
+  _backoffMs(attempt, err) {
+    // Explicit Retry-After from the server always wins.
+    if (err && Number.isFinite(err.retryAfterMs) && err.retryAfterMs >= 0) {
+      return Math.round(err.retryAfterMs);
+    }
+    // 429 without Retry-After: back off much more than for generic 5xx.
+    // Sources that throttle us deserve patience, and our earlier
+    // restart-loop may have poisoned our IP reputation — starting at
+    // 30s and doubling gives the server meaningful recovery time.
+    const is429 = err && err.status === 429;
+    const baseMs = is429 ? TOO_MANY_REQUESTS_BACKOFF_MS : this.baseBackoffMs;
+    const base = baseMs * 2 ** (attempt - 1);
     const jitter = 1 + (this.randomJitter() - 0.5) * 0.5; // ±25%
     return Math.round(base * jitter);
   }
 }
+
+const TOO_MANY_REQUESTS_BACKOFF_MS = 30_000;
 
 // ---------------------------------------------------------------------
 // Rate limiter

@@ -3,20 +3,35 @@
 // =====================================================================
 // USPTO PatentsView worker — Tier A
 //
-// Endpoint: https://search.patentsview.org/api/v1/patent/
-//   POST JSON: { q, f, s, o }
-// Auth: none required for public data.
-// Rate limit: generous; default 2 rps.
+// IMPORTANT — MIGRATION NOTICE (USPTO, Oct 2024):
+//   The PatentsView API was merged into USPTO's Open Data Portal. The
+//   previous anonymous endpoint now returns HTTP 410 Gone. Operators
+//   must:
+//     1. Register at https://developer.uspto.gov
+//     2. Obtain an API key (free tier available)
+//     3. Set USPTO_API_KEY in the worker host env
+//     4. If USPTO has also changed the base URL (they may move it to
+//        api.uspto.gov), override PATENTSVIEW_ENDPOINT accordingly.
 //
-// Cursor shape: { lastPatentId: '<string>' }  (paginated by patent_id asc)
-// Delta mode narrows the query to patents with patent_date in the last N days.
-// Backfill starts from 2015-01-01 for CPC software classes.
+//   The worker sends the key as X-Api-Key on every request. Without
+//   the key the endpoint returns 401; the worker surfaces that as
+//   SourceApiAuthError with a pointer back to developer.uspto.gov.
+//
+// Rate limit: generous with a key; default 2 rps.
+// Cursor shape: { lastPatentId: '<string>' }
 // =====================================================================
 
 const { BaseWorker } = require('../../shared/base_worker.js');
-const { DocumentValidationError } = require('../../shared/worker_errors.js');
+const {
+  DocumentValidationError,
+  SourceApiAuthError,
+  SourceApiPermanentError,
+} = require('../../shared/worker_errors.js');
 
 const SOURCE_ID = 'uspto-patentsview';
+// Default endpoint as of the v1 POST-JSON API. USPTO may have moved it
+// under the ODP umbrella; override via PATENTSVIEW_ENDPOINT if a 410
+// comes back and developer.uspto.gov points you at a different URL.
 const DEFAULT_ENDPOINT = 'https://search.patentsview.org/api/v1/patent/';
 const DEFAULT_PAGE_SIZE = 500;
 const DEFAULT_CPC_GROUPS = ['G06F', 'G06N', 'G06Q', 'H04L'];
@@ -27,8 +42,9 @@ class PatentsViewWorker extends BaseWorker {
     super({ requestsPerSecond: 2, ...opts });
     this.source_id = SOURCE_ID;
     this.tier = 'A';
-    this.authEnvVar = null;
-    this.endpoint = opts.endpoint || DEFAULT_ENDPOINT;
+    this.authEnvVar = 'USPTO_API_KEY';
+    this.endpoint = opts.endpoint || process.env.PATENTSVIEW_ENDPOINT || DEFAULT_ENDPOINT;
+    this.apiKey = opts.apiKey ?? process.env.USPTO_API_KEY ?? null;
     this.pageSize = opts.pageSize || DEFAULT_PAGE_SIZE;
     this.cpcGroups = opts.cpcGroups || DEFAULT_CPC_GROUPS;
     this.backfillFrom = opts.backfillFrom || DEFAULT_BACKFILL_FROM;
@@ -36,14 +52,44 @@ class PatentsViewWorker extends BaseWorker {
   }
 
   async *pages({ mode, cursor }) {
+    if (!this.apiKey) {
+      throw new SourceApiAuthError(
+        this.source_id,
+        this.authEnvVar,
+        'register at developer.uspto.gov to obtain a free API key, then set USPTO_API_KEY in the worker host env',
+      );
+    }
+
     let lastId = (cursor && cursor.lastPatentId) || null;
     while (true) {
       const query = this._buildQuery(mode, lastId);
-      const res = await this.fetchPage(this.endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(query),
-      });
+
+      let res;
+      try {
+        res = await this.fetchPage(this.endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Api-Key': this.apiKey,
+          },
+          body: JSON.stringify(query),
+        });
+      } catch (err) {
+        // A 410 means USPTO has moved or retired this endpoint entirely.
+        // Surface a specific, actionable error instead of the generic
+        // "permanent HTTP 410" from classifyHttpError.
+        if (err instanceof SourceApiPermanentError && err.status === 410) {
+          throw new SourceApiPermanentError(
+            `${this.source_id} endpoint returned HTTP 410 Gone (${this.endpoint}). ` +
+              'USPTO migrated PatentsView to the Open Data Portal in Oct 2024. ' +
+              'Check developer.uspto.gov for the current URL and set PATENTSVIEW_ENDPOINT ' +
+              'to override the default.',
+            { status: 410, body: err.body, source: this.source_id },
+          );
+        }
+        throw err;
+      }
+
       const payload = await res.json();
       const patents = payload && payload.patents ? payload.patents : [];
       if (patents.length === 0) return;
@@ -65,7 +111,10 @@ class PatentsViewWorker extends BaseWorker {
     }
     const title = (raw.patent_title || '').trim();
     if (!title) {
-      throw new DocumentValidationError('missing patent_title', { nativeId, field: 'patent_title' });
+      throw new DocumentValidationError('missing patent_title', {
+        nativeId,
+        field: 'patent_title',
+      });
     }
     const abstract = (raw.patent_abstract || '').trim();
     const embedText = `${title}\n\n${abstract}`.trim();

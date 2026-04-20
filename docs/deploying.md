@@ -115,18 +115,20 @@ Function bundle is ~1.2 MB zipped (well under 50 MB limit). Cold start dominated
 
 Same LLM + embedding + database vars as Netlify, plus ingestion source tokens:
 
-| Key                                                             | Notes                                                              |
-| --------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `DATABASE_URL`                                                  | Neon **direct** (not pooled) — `pg.Pool` wants the direct endpoint |
-| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`                          | —                                                                  |
-| `VOYAGE_API_KEY`, `OPENAI_API_KEY` _(optional)_                 | —                                                                  |
-| `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS` | same values as Netlify                                             |
-| `GITHUB_TOKEN`                                                  | PAT with `public_repo` read — required by the GitHub worker        |
-| `SEMANTIC_SCHOLAR_API_KEY`                                      | When the semantic-scholar worker lands                             |
-| `IEEE_API_KEY`                                                  | When the ieee worker lands                                         |
-| `BIGQUERY_PROJECT_ID`, `GOOGLE_APPLICATION_CREDENTIALS`         | When the google-patents worker lands                               |
-| `LOG_LEVEL`                                                     | `info` in production, `debug` when you need cache-hit/miss counts  |
-| `HEALTH_CHECK_URL`                                              | `https://patentprecheck.com/.netlify/functions/analyze`            |
+| Key                                                             | Notes                                                                                                       |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                                  | Neon **direct** (not pooled) — `pg.Pool` wants the direct endpoint                                          |
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`                          | —                                                                                                           |
+| `VOYAGE_API_KEY`, `OPENAI_API_KEY` _(optional)_                 | —                                                                                                           |
+| `EMBEDDING_PROVIDER`, `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS` | same values as Netlify                                                                                      |
+| `GITHUB_TOKEN`                                                  | PAT with `public_repo` read — **required** by the github-search worker                                      |
+| `USPTO_API_KEY`                                                 | USPTO Open Data Portal key — **required** by the uspto-patentsview worker (register at developer.uspto.gov) |
+| `PATENTSVIEW_ENDPOINT` _(optional)_                             | Override the PatentsView base URL if USPTO moves it under ODP                                               |
+| `SEMANTIC_SCHOLAR_API_KEY`                                      | When the semantic-scholar worker lands                                                                      |
+| `IEEE_API_KEY`                                                  | When the ieee worker lands                                                                                  |
+| `BIGQUERY_PROJECT_ID`, `GOOGLE_APPLICATION_CREDENTIALS`         | When the google-patents worker lands                                                                        |
+| `LOG_LEVEL`                                                     | `info` in production, `debug` when you need cache-hit/miss counts                                           |
+| `HEALTH_CHECK_URL`                                              | `https://patentprecheck.com/.netlify/functions/analyze`                                                     |
 
 ### Cron schedules
 

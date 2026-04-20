@@ -28,7 +28,12 @@ const DEFAULT_QUERY = 'cat:cs.* OR cat:stat.ML';
 
 class ArxivWorker extends BaseWorker {
   constructor(opts = {}) {
-    super({ requestsPerSecond: 0.33, ...opts });
+    // arXiv asks for ≤ 1 req / 3 sec. We run at 0.2 rps (1 per 5 sec) to
+    // stay well clear of their throttle — especially after restart-loop
+    // incidents that may have warmed up their rate-limit state against
+    // our IP. Combined with Retry-After parsing + 30 s base backoff on
+    // 429s, the worker self-recovers from most throttling.
+    super({ requestsPerSecond: 0.2, ...opts });
     this.source_id = SOURCE_ID;
     this.tier = 'B';
     this.authEnvVar = null;
