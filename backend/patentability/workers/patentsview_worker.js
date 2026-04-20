@@ -4,34 +4,47 @@
 // USPTO Open Data Portal worker — Tier A
 //
 // BACKGROUND
-//   • The legacy PatentsView API was retired 2025-05-01 (returns HTTP
-//     410 Gone). USPTO migrated the service to the Open Data Portal
-//     at data.uspto.gov on 2026-03-20. All patentsview.org URLs now
-//     redirect to data.uspto.gov.
+//   • Legacy PatentsView API retired 2025-05-01 (HTTP 410). USPTO
+//     migrated the service to the Open Data Portal at data.uspto.gov
+//     on 2026-03-20.
 //   • This worker keeps source_id 'uspto-patentsview' for registry
-//     stability (avoids needing to migrate any row already written
-//     under that id). The external-facing service is USPTO ODP.
+//     stability. The external-facing service is USPTO ODP.
 //
-// AUTH (from ODP docs, Getting Started → Authentication)
+// AUTH
 //   • Header: `X-Api-Key: <key>` on every request.
 //   • Key obtained at data.uspto.gov → Developer Portal → Register.
 //   • Free tier: 45 requests per minute (≈ 0.75 rps).
 //   • Key does not currently expire.
 //
-// IMPLEMENTATION STATUS — READ BEFORE EDITING
-//   The default endpoint path and request/response schema below are
-//   BEST-EFFORT GUESSES at the Patent File Wrapper search API. They
-//   have not been verified against live ODP responses. The worker is
-//   deliberately defensive so it can be adapted via config without a
-//   code change when the real schema is observed:
+// REQUEST SCHEMA (canonical, verified against ODP Swagger)
+//   {
+//     "q": "<lucene-style query>",
+//     "filters":      [{ name, value: [...] }],      // exact-match
+//     "rangeFilters": [{ field, valueFrom, valueTo }],
+//     "sort":         [{ field, order: 'asc'|'desc' }],
+//     "fields":       [<dot-notation paths>],        // optional narrow
+//     "pagination":   { offset, limit },
+//     "facets":       [<paths>]                      // optional
+//   }
 //
-//     USPTO_ODP_ENDPOINT       override the POST URL entirely
-//     PATENTSVIEW_ENDPOINT     backward-compat alias for USPTO_ODP_ENDPOINT
+//   Field paths use dot-notation on the nested response tree, e.g.
+//   `applicationMetaData.filingDate`, `applicationMetaData.inventionTitle`.
 //
-//   parseDocument() also tries multiple plausible field names so
-//   close-but-not-exact schema differences parse successfully.
+// RESPONSE SHAPE (observed)
+//   Each item typically has a top-level `applicationNumberText` and a
+//   nested `applicationMetaData` object. parseDocument() reads nested
+//   paths but also falls back to top-level names so a schema drift
+//   doesn't instantly break ingestion.
 //
-// Rate limit: 0.7 rps (slightly under 0.75 to stay clear of the cap).
+// OPEN ITEM: abstract field path
+//   Kevin flagged that abstract text may not be in the default search
+//   response. parseDocument() checks several plausible paths; if none
+//   return text, the worker ingests title-only — retrieval quality
+//   degrades but ingestion proceeds. Swagger verification needed to
+//   confirm whether abstract requires a secondary call to
+//   /api/v1/patent/applications/{applicationNumberText}.
+//
+// Rate limit: 0.7 rps (just under the 45 req/min cap).
 // Cursor shape: { offset: <nonNegative integer> }
 // =====================================================================
 
@@ -44,14 +57,10 @@ const {
 
 const SOURCE_ID = 'uspto-patentsview';
 
-// Best-effort default — likely the Patent File Wrapper search endpoint.
-// Override via USPTO_ODP_ENDPOINT in the environment if this is wrong.
 const DEFAULT_ODP_ENDPOINT = 'https://api.uspto.gov/api/v1/patent/applications/search';
 const DEFAULT_PAGE_SIZE = 100;
 const DEFAULT_CPC_GROUPS = ['G06F', 'G06N', 'G06Q', 'H04L'];
 const DEFAULT_BACKFILL_FROM = '2015-01-01';
-
-// 45 req/min = 0.75 rps. Use 0.7 for safety.
 const DEFAULT_RPS = 0.7;
 
 class PatentsViewWorker extends BaseWorker {
@@ -70,6 +79,9 @@ class PatentsViewWorker extends BaseWorker {
     this.cpcGroups = opts.cpcGroups || DEFAULT_CPC_GROUPS;
     this.backfillFrom = opts.backfillFrom || DEFAULT_BACKFILL_FROM;
     this.deltaLookbackDays = opts.deltaLookbackDays || 7;
+    // Optional override for the primary query string. If unset, the
+    // worker builds one from applicationType + CPC groups.
+    this.customQuery = opts.customQuery || null;
   }
 
   async *pages({ mode, cursor }) {
@@ -97,8 +109,6 @@ class PatentsViewWorker extends BaseWorker {
           body: JSON.stringify(body),
         });
       } catch (err) {
-        // 410 means USPTO retired even the ODP path we're on. Tell the
-        // operator how to override without a code change.
         if (err instanceof SourceApiPermanentError && err.status === 410) {
           const bodyTail = err.body ? ` — body: ${err.body}` : '';
           throw new SourceApiPermanentError(
@@ -123,10 +133,6 @@ class PatentsViewWorker extends BaseWorker {
     }
   }
 
-  // Defensive parser. Tries multiple plausible field names so
-  // close-but-not-exact schema differences still parse. If all
-  // attempts fail, throws DocumentValidationError which the base
-  // class counts toward the skip-rate guardrail.
   parseDocument(raw) {
     if (!raw || typeof raw !== 'object') {
       throw new DocumentValidationError('non-object ODP response item', {
@@ -135,63 +141,89 @@ class PatentsViewWorker extends BaseWorker {
       });
     }
 
+    const meta = raw.applicationMetaData || {};
+
+    // Native ID — ODP canonical is applicationNumberText at the top
+    // level. Fall back to other plausible names so a drift doesn't
+    // break ingestion.
     const nativeId = firstNonEmpty(
+      raw.applicationNumberText,
       raw.applicationNumber,
+      raw.publicationNumberText,
       raw.publicationNumber,
       raw.patentNumber,
       raw.patent_id,
-      raw.applicationNumberText,
-      raw.documentNumber,
     );
     if (!nativeId) {
-      throw new DocumentValidationError('missing application/patent id', {
+      throw new DocumentValidationError('missing applicationNumberText / id', {
         nativeId: null,
-        field: 'applicationNumber/publicationNumber/patentNumber',
+        field: 'applicationNumberText',
       });
     }
 
+    // Title — under applicationMetaData per ODP schema.
     const title = stringify(
       firstNonEmpty(
+        meta.inventionTitle,
+        meta.inventionTitleText,
         raw.inventionTitle,
         raw.patent_title,
-        raw.title,
-        raw.inventionSubjectMatterCategory?.inventionTitle,
       ),
     );
     if (!title) {
-      throw new DocumentValidationError('missing invention title', {
+      throw new DocumentValidationError('missing inventionTitle', {
         nativeId,
-        field: 'inventionTitle/patent_title/title',
+        field: 'applicationMetaData.inventionTitle',
       });
     }
 
+    // Abstract — path uncertain. Try everywhere plausible. If none
+    // match, embedText falls back to title-only (still indexable, just
+    // lower retrieval quality than with abstract).
     const abstract = stringify(
-      firstNonEmpty(raw.abstract, raw.abstractText, raw.patent_abstract, raw.description),
+      firstNonEmpty(
+        meta.inventionAbstractText,
+        meta.abstractText,
+        meta.abstract,
+        extractFromBag(meta.abstractBag, ['abstractTextBagItem', 'text', 'value']),
+        raw.abstract,
+        raw.abstractText,
+        raw.patent_abstract,
+      ),
     );
 
     const publishedAt = stringify(
       firstNonEmpty(
+        meta.filingDate,
+        meta.grantDate,
+        meta.publicationDate,
         raw.filingDate,
-        raw.publicationDate,
-        raw.patentDate,
         raw.patent_date,
-        raw.earliestPublicationDate,
       ),
     );
 
     const cpcClassifications = firstNonEmpty(
+      meta.cpcClassificationBag,
+      meta.cpcClassifications,
       raw.cpcClassifications,
-      raw.cpcClassificationBag,
       raw.cpc_current,
     );
-    const assignees = firstNonEmpty(
+
+    // Applicants (assignees). ODP uses applicantBag; older schemas may
+    // have assignees / applicants flat arrays.
+    const applicants = firstNonEmpty(
+      meta.applicantBag,
+      meta.applicants,
       raw.applicants,
       raw.assignees,
-      raw.applicantBag,
-      raw.assigneeBag,
     );
 
-    const embedText = `${title}\n\n${abstract}`.trim();
+    const applicationType = stringify(
+      firstNonEmpty(meta.applicationTypeLabelName, meta.applicationType),
+    );
+    const status = stringify(meta.applicationStatusDescriptionText);
+
+    const embedText = abstract ? `${title}\n\n${abstract}`.trim() : title;
     if (embedText.length === 0) {
       throw new DocumentValidationError('empty embedText', { nativeId, field: 'embedText' });
     }
@@ -200,49 +232,79 @@ class PatentsViewWorker extends BaseWorker {
       native_id: String(nativeId),
       doc_type: 'patent',
       title,
-      abstract,
+      abstract: abstract || null,
       url: `https://patents.google.com/patent/US${String(nativeId).replace(/[^0-9A-Za-z]/g, '')}`,
       published_at: publishedAt || null,
       language: 'en',
       metadata: {
+        application_type: applicationType || null,
+        status: status || null,
         cpc_classifications: cpcClassifications || [],
-        applicants: assignees || [],
+        applicants: applicants || [],
+        had_abstract: Boolean(abstract),
       },
       embedText,
     };
   }
 
+  // Build the ODP search request body per the canonical Swagger shape.
+  //
+  // The query narrows to Utility applications in a date range, with a
+  // Lucene clause for CPC symbol prefixes. CPC symbols are hierarchical
+  // (e.g. "G06F 7/00"), so we use wildcard matches under the
+  // cpcClassificationBag — an exact-value `filters` entry wouldn't
+  // match anything more specific than the top-level group.
   _buildQuery(mode, offset) {
     const from =
       mode === 'delta'
         ? isoDateDaysAgo(this.now(), this.deltaLookbackDays)
         : this.backfillFrom;
+    const to = todayIso(this.now());
 
-    // Best-effort request shape — follows common REST search-API
-    // conventions. If the ODP expects a different JSON layout, this
-    // is the place to adapt (or override the whole worker).
+    const q = this.customQuery || this._buildDefaultQ();
+
     return {
-      filter: {
-        filingDateRange: { from, to: todayIso(this.now()) },
-        cpcClassifications: this.cpcGroups,
-      },
+      q,
+      // filters[] is reserved for future exact-match narrowing (e.g.
+      // pulling only "Patented Case" status). Keep empty for now so
+      // the delta window captures pending applications too.
+      filters: [],
+      rangeFilters: [
+        {
+          field: 'applicationMetaData.filingDate',
+          valueFrom: from,
+          valueTo: to,
+        },
+      ],
+      sort: [
+        {
+          field: 'applicationMetaData.filingDate',
+          order: 'asc',
+        },
+      ],
       pagination: {
         offset,
         limit: this.pageSize,
       },
-      fields: [
-        'applicationNumber',
-        'publicationNumber',
-        'patentNumber',
-        'inventionTitle',
-        'abstract',
-        'filingDate',
-        'publicationDate',
-        'cpcClassifications',
-        'applicants',
-      ],
-      sort: [{ field: 'applicationNumber', direction: 'asc' }],
+      // fields: omitted on purpose. The default ODP response includes
+      // more metadata than the narrow list we would otherwise request,
+      // which helps while the abstract-field path is still being
+      // verified. We can narrow once the schema is pinned.
     };
+  }
+
+  _buildDefaultQ() {
+    const typeClause = 'applicationMetaData.applicationTypeLabelName:Utility';
+    if (!this.cpcGroups || this.cpcGroups.length === 0) {
+      return typeClause;
+    }
+    // Lucene wildcard match on the nested bag path. `G06F*` matches
+    // G06F, G06F 7/00, G06F 16/00, etc. Joined with OR so any matching
+    // CPC group qualifies the document.
+    const cpcClause = this.cpcGroups
+      .map((g) => `applicationMetaData.cpcClassificationBag.cpcSymbolText:${g}*`)
+      .join(' OR ');
+    return `${typeClause} AND (${cpcClause})`;
   }
 }
 
@@ -250,17 +312,17 @@ class PatentsViewWorker extends BaseWorker {
 // Response unwrap helpers
 // ---------------------------------------------------------------------
 
-// ODP payload shape isn't verified. Try the common wrappers; fall back
-// to the payload itself if it's already an array.
 function unwrapItems(payload) {
   if (!payload) return [];
   if (Array.isArray(payload)) return payload;
   const candidates = [
+    payload.patentFileWrapperDataBag,
+    payload.patentBag,
+    payload.applications,
     payload.results,
     payload.items,
     payload.data,
     payload.patents,
-    payload.applications,
     payload.documents,
   ];
   for (const c of candidates) {
@@ -284,11 +346,34 @@ function stringify(v) {
   if (typeof v === 'string') return v.trim();
   if (Array.isArray(v)) return v.map(stringify).filter(Boolean).join(' ').trim();
   if (typeof v === 'object') {
-    // Common wrapper pattern: { text: "..." } or { value: "..." }.
     if (typeof v.text === 'string') return v.text.trim();
     if (typeof v.value === 'string') return v.value.trim();
   }
   return String(v).trim();
+}
+
+// Extract a text value from USPTO's "bag" pattern: an array whose items
+// contain a text field under one of several plausible key names.
+function extractFromBag(bag, keys = ['text', 'value']) {
+  if (!Array.isArray(bag) || bag.length === 0) return null;
+  for (const item of bag) {
+    if (typeof item === 'string') return item;
+    if (item && typeof item === 'object') {
+      for (const key of keys) {
+        if (typeof item[key] === 'string' && item[key].trim().length > 0) {
+          return item[key];
+        }
+      }
+      // Nested bag: abstractBag → [{ abstractTextBagItem: [{ text: "..." }] }]
+      for (const val of Object.values(item)) {
+        if (Array.isArray(val)) {
+          const inner = extractFromBag(val, keys);
+          if (inner) return inner;
+        }
+      }
+    }
+  }
+  return null;
 }
 
 function isoDateDaysAgo(now, days) {

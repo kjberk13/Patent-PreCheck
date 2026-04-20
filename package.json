@@ -26,7 +26,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "node scripts/syntax-check.js",
-    "test": "node --test backend/**/__tests__/*.test.js netlify/**/__tests__/*.test.js",
+    "test": "node scripts/run-tests.js",
     "db:up": "docker compose -f infra/docker/docker-compose.yml up -d",
     "db:down": "docker compose -f infra/docker/docker-compose.yml down",
     "db:logs": "docker compose -f infra/docker/docker-compose.yml logs -f postgres",

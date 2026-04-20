@@ -274,34 +274,40 @@ test('GitHub worker retries 503 then succeeds', async () => {
 });
 
 // =====================================================================
-// PatentsView
+// USPTO Open Data Portal
 // =====================================================================
 
-// ODP response shape (best-effort). `results` is the most likely
-// wrapper for a modern REST search API. `applicationNumber` is the
-// primary id; fields below use the names most consistent with USPTO's
-// own schema conventions.
+// ODP canonical response shape (verified via Swagger UI):
+//   - Top-level `patentFileWrapperDataBag` (primary wrapper) OR
+//     `patentBag` / `applications` depending on endpoint.
+//   - Each item has `applicationNumberText` at top level and nested
+//     metadata under `applicationMetaData`.
 function odpFixture(ids) {
   return {
-    results: ids.map((id, i) => ({
-      applicationNumber: String(id),
-      inventionTitle: `Method and System for ${id}`,
-      abstract: `Abstract describing application ${id} in detail.`,
-      filingDate: '2024-06-01',
-      cpcClassifications: [{ symbol: 'G06F' }],
-      applicants: [{ name: `Co ${i}` }],
+    patentFileWrapperDataBag: ids.map((id, i) => ({
+      applicationNumberText: String(id),
+      applicationMetaData: {
+        inventionTitle: `Method and System for ${id}`,
+        inventionAbstractText: `Abstract describing application ${id} in detail.`,
+        filingDate: '2024-06-01',
+        applicationTypeLabelName: 'Utility',
+        applicationStatusDescriptionText: 'Patented Case',
+        cpcClassificationBag: [{ cpcSymbolText: `G06F 7/${i.toString().padStart(2, '0')}` }],
+        applicantBag: [{ applicantNameText: `Co ${i}` }],
+      },
     })),
-    pagination: { total: ids.length, offset: 0, limit: ids.length },
   };
 }
 
-test('USPTO ODP worker: fetch → parse → embed → upsert → log', async () => {
-  // The worker must send the API key as X-Api-Key on every request
-  // to api.uspto.gov (the ODP base).
+test('USPTO ODP worker: POSTs canonical Swagger schema with X-Api-Key', async () => {
+  let capturedBody = null;
   nock('https://api.uspto.gov', {
     reqheaders: { 'x-api-key': 'uspto-test-key' },
   })
-    .post('/api/v1/patent/applications/search')
+    .post('/api/v1/patent/applications/search', (body) => {
+      capturedBody = body;
+      return true;
+    })
     .reply(200, odpFixture([11000001, 11000002, 11000003]));
   nock('https://api.uspto.gov', {
     reqheaders: { 'x-api-key': 'uspto-test-key' },
@@ -331,14 +337,107 @@ test('USPTO ODP worker: fetch → parse → embed → upsert → log', async () 
   assert.equal(docs[0].source_id, 'uspto-patentsview');
   assert.equal(docs[0].doc_type, 'patent');
   assert.match(docs[0].url, /patents\.google\.com\/patent\/US/);
+  assert.equal(docs[0].title, 'Method and System for 11000001');
+  assert.match(docs[0].abstract, /Abstract describing application 11000001/);
+  assert.equal(docs[0].metadata.application_type, 'Utility');
+  assert.equal(docs[0].metadata.status, 'Patented Case');
+  assert.equal(docs[0].metadata.had_abstract, true);
 
   const run = persistence.getRuns()[0];
   assert.equal(run.metadata.cursor.offset, 3);
+
+  // The request body must match the ODP canonical schema.
+  assert.ok(capturedBody, 'request body captured by nock interceptor');
+  assert.equal(typeof capturedBody.q, 'string', 'q is a string');
+  assert.match(capturedBody.q, /applicationTypeLabelName:Utility/);
+  assert.match(capturedBody.q, /cpcClassificationBag\.cpcSymbolText:G06F\*/);
+  assert.deepEqual(capturedBody.filters, []);
+  assert.equal(capturedBody.rangeFilters[0].field, 'applicationMetaData.filingDate');
+  assert.ok(capturedBody.rangeFilters[0].valueFrom, 'rangeFilters.valueFrom present');
+  assert.ok(capturedBody.rangeFilters[0].valueTo, 'rangeFilters.valueTo present');
+  assert.equal(capturedBody.sort[0].field, 'applicationMetaData.filingDate');
+  assert.equal(capturedBody.sort[0].order, 'asc');
+  assert.equal(capturedBody.pagination.offset, 0);
+  assert.equal(capturedBody.pagination.limit, 10);
 });
 
-test('USPTO ODP worker: parseDocument is defensive against legacy field names', () => {
-  // If USPTO ships back a payload with PatentsView-style keys, the
-  // worker should still parse it rather than throwing.
+test('USPTO ODP worker: parseDocument reads from applicationMetaData (nested ODP shape)', () => {
+  const worker = new PatentsViewWorker({
+    persistence: new MemoryWorkerPersistence(),
+    embeddings: new FakeEmbeddings(),
+    logger: () => {},
+    sleep: () => Promise.resolve(),
+    apiKey: 'x',
+  });
+  const doc = worker.parseDocument({
+    applicationNumberText: '17/123,456',
+    applicationMetaData: {
+      inventionTitle: 'Neural Widget',
+      inventionAbstractText: 'A method for widget embedding via neural nets.',
+      filingDate: '2023-04-15',
+      applicationTypeLabelName: 'Utility',
+      applicationStatusDescriptionText: 'Patented Case',
+      cpcClassificationBag: [{ cpcSymbolText: 'G06N 3/08' }],
+      applicantBag: [{ applicantNameText: 'Widget Corp' }],
+    },
+  });
+  assert.equal(doc.native_id, '17/123,456');
+  assert.equal(doc.title, 'Neural Widget');
+  assert.match(doc.abstract, /widget embedding/);
+  assert.equal(doc.published_at, '2023-04-15');
+  assert.equal(doc.metadata.application_type, 'Utility');
+  assert.equal(doc.metadata.had_abstract, true);
+  assert.equal(doc.metadata.cpc_classifications[0].cpcSymbolText, 'G06N 3/08');
+});
+
+test('USPTO ODP worker: parseDocument tries abstractBag fallback for nested text', () => {
+  const worker = new PatentsViewWorker({
+    persistence: new MemoryWorkerPersistence(),
+    embeddings: new FakeEmbeddings(),
+    logger: () => {},
+    sleep: () => Promise.resolve(),
+    apiKey: 'x',
+  });
+  // Some ODP endpoints expose abstract as a nested "bag" instead of a
+  // flat text field. Parser should dig into it.
+  const doc = worker.parseDocument({
+    applicationNumberText: '17/999,000',
+    applicationMetaData: {
+      inventionTitle: 'Bagged Abstract',
+      filingDate: '2024-01-01',
+      abstractBag: [{ abstractTextBagItem: [{ text: 'Abstract from a nested bag.' }] }],
+    },
+  });
+  assert.match(doc.abstract, /nested bag/);
+  assert.equal(doc.metadata.had_abstract, true);
+});
+
+test('USPTO ODP worker: parseDocument falls back to title-only when abstract is absent', () => {
+  const worker = new PatentsViewWorker({
+    persistence: new MemoryWorkerPersistence(),
+    embeddings: new FakeEmbeddings(),
+    logger: () => {},
+    sleep: () => Promise.resolve(),
+    apiKey: 'x',
+  });
+  // Verify the worker ingests successfully even if USPTO's search
+  // response omits abstract text (a likely real-world situation).
+  const doc = worker.parseDocument({
+    applicationNumberText: '17/111,222',
+    applicationMetaData: {
+      inventionTitle: 'Title-only Widget',
+      filingDate: '2024-01-01',
+    },
+  });
+  assert.equal(doc.title, 'Title-only Widget');
+  assert.equal(doc.abstract, null);
+  assert.equal(doc.metadata.had_abstract, false);
+  assert.equal(doc.embedText, 'Title-only Widget');
+});
+
+test('USPTO ODP worker: parseDocument still parses legacy PatentsView field names', () => {
+  // Defensive — if any cached/alt response still uses PatentsView-style
+  // keys, we don't hard-fail.
   const worker = new PatentsViewWorker({
     persistence: new MemoryWorkerPersistence(),
     embeddings: new FakeEmbeddings(),
@@ -376,6 +475,29 @@ test('USPTO ODP worker: honours USPTO_ODP_ENDPOINT override', async () => {
   });
   const result = await worker.run({ mode: 'delta' });
   assert.equal(result.status, 'success');
+});
+
+test('USPTO ODP worker: customQuery override bypasses the default q builder', async () => {
+  let capturedBody = null;
+  nock('https://api.uspto.gov', {
+    reqheaders: { 'x-api-key': 'k' },
+  })
+    .post('/api/v1/patent/applications/search', (body) => {
+      capturedBody = body;
+      return true;
+    })
+    .reply(200, odpFixture([]));
+
+  const worker = new PatentsViewWorker({
+    persistence: new MemoryWorkerPersistence(),
+    embeddings: new FakeEmbeddings(),
+    logger: () => {},
+    sleep: () => Promise.resolve(),
+    apiKey: 'k',
+    customQuery: 'applicationMetaData.applicationTypeLabelName:Design',
+  });
+  await worker.run({ mode: 'delta' });
+  assert.equal(capturedBody.q, 'applicationMetaData.applicationTypeLabelName:Design');
 });
 
 test('USPTO ODP worker throws SourceApiAuthError when USPTO_API_KEY is missing', async () => {
