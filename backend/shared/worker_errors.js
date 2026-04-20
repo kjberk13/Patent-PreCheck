@@ -80,11 +80,12 @@ const TRANSIENT_HTTP_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 function classifyHttpError(status, body, source, { authEnvVar, headers } = {}) {
   const trimmed = typeof body === 'string' ? truncate(body, 400) : undefined;
+  const bodyTail = trimmed ? ` — body: ${trimmed}` : '';
   if (status === 401 || status === 403) {
     return new SourceApiAuthError(source, authEnvVar || inferEnvVar(source), trimmed);
   }
   if (TRANSIENT_HTTP_STATUS.has(status)) {
-    const err = new SourceApiTransientError(`${source} transient HTTP ${status}`, {
+    const err = new SourceApiTransientError(`${source} transient HTTP ${status}${bodyTail}`, {
       status,
       body: trimmed,
       source,
@@ -95,7 +96,7 @@ function classifyHttpError(status, body, source, { authEnvVar, headers } = {}) {
     }
     return err;
   }
-  return new SourceApiPermanentError(`${source} permanent HTTP ${status}`, {
+  return new SourceApiPermanentError(`${source} permanent HTTP ${status}${bodyTail}`, {
     status,
     body: trimmed,
     source,

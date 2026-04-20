@@ -177,6 +177,24 @@ function logStartup(validated) {
   for (const key of ['PGHOST', 'PGPORT', 'PGUSER', 'PGDATABASE', 'PGSSLMODE']) {
     if (process.env[key] !== undefined) pgEnv[key] = process.env[key];
   }
+
+  // Presence check (NOT value) for every env var a worker might read.
+  // If a value is set on Railway's Shared Variables but the service
+  // isn't linked to that variable, process.env won't see it — and this
+  // log line tells us that before any worker throws its own auth error.
+  const authEnvPresence = {};
+  for (const key of [
+    'ANTHROPIC_API_KEY',
+    'VOYAGE_API_KEY',
+    'OPENAI_API_KEY',
+    'USPTO_API_KEY',
+    'GITHUB_TOKEN',
+    'SEMANTIC_SCHOLAR_API_KEY',
+    'IEEE_API_KEY',
+  ]) {
+    authEnvPresence[key] = Boolean(process.env[key] && process.env[key].length > 0);
+  }
+
   log('info', {
     event: 'ingest_startup',
     database_url_hostname: validated.hostname,
@@ -185,6 +203,7 @@ function logStartup(validated) {
     database_url_username: validated.username,
     database_url_sslmode: validated.sslmode,
     pg_env_overrides: Object.keys(pgEnv).length > 0 ? pgEnv : '(none)',
+    auth_env_presence: authEnvPresence,
     node_version: process.version,
   });
 }

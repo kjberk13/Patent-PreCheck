@@ -100,8 +100,9 @@ class PatentsViewWorker extends BaseWorker {
         // 410 means USPTO retired even the ODP path we're on. Tell the
         // operator how to override without a code change.
         if (err instanceof SourceApiPermanentError && err.status === 410) {
+          const bodyTail = err.body ? ` — body: ${err.body}` : '';
           throw new SourceApiPermanentError(
-            `${this.source_id} endpoint returned HTTP 410 Gone (${this.endpoint}). ` +
+            `${this.source_id} endpoint returned HTTP 410 Gone (${this.endpoint})${bodyTail}. ` +
               'USPTO may have moved or retired this ODP endpoint again. Check data.uspto.gov ' +
               '→ Developer Portal for the current URL and set USPTO_ODP_ENDPOINT to override.',
             { status: 410, body: err.body, source: this.source_id },

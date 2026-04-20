@@ -426,6 +426,44 @@ test('classifyHttpError maps status codes to the right subclass', () => {
   assert.ok(classifyHttpError(403, 'deny', 'src') instanceof SourceApiAuthError);
 });
 
+test('classifyHttpError includes the response body in the message for 5xx', () => {
+  const err = classifyHttpError(
+    500,
+    '{"error":"arxiv service temporarily down","retry":true}',
+    'arxiv',
+  );
+  assert.match(err.message, /arxiv transient HTTP 500/);
+  assert.match(err.message, /arxiv service temporarily down/);
+  assert.equal(err.body, '{"error":"arxiv service temporarily down","retry":true}');
+});
+
+test('classifyHttpError includes the response body in the message for permanent 4xx', () => {
+  const err = classifyHttpError(
+    400,
+    '{"error":"Invalid field: inventionTitle is not a valid search field"}',
+    'uspto-patentsview',
+  );
+  assert.match(err.message, /uspto-patentsview permanent HTTP 400/);
+  assert.match(err.message, /Invalid field/);
+  assert.match(err.message, /inventionTitle/);
+});
+
+test('classifyHttpError omits the body tail when body is empty or missing', () => {
+  const noBody = classifyHttpError(503, undefined, 'src');
+  assert.match(noBody.message, /src transient HTTP 503$/);
+  assert.ok(!noBody.message.includes(' — body:'));
+
+  const emptyBody = classifyHttpError(400, '', 'src');
+  assert.match(emptyBody.message, /src permanent HTTP 400$/);
+  assert.ok(!emptyBody.message.includes(' — body:'));
+});
+
+test('classifyHttpError truncates long response bodies to keep the message readable', () => {
+  const longBody = 'x'.repeat(5_000);
+  const err = classifyHttpError(400, longBody, 'src');
+  assert.ok(err.message.length < 600, `expected truncation, got ${err.message.length} chars`);
+});
+
 test('classifyHttpError builds a helpful auth error message', () => {
   const err = classifyHttpError(401, 'invalid token', 'github-search', {
     authEnvVar: 'GITHUB_TOKEN',
