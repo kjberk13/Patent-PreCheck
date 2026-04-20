@@ -404,6 +404,8 @@ class EmbeddingsError extends Error {
     this.name = 'EmbeddingsError';
     this.status = status;
     this.retryable = retryable === true || (status !== undefined && RETRYABLE_STATUS.has(status));
+    // Full body preserved for programmatic inspection; message carries a
+    // truncated copy for log readability (see fromResponse below).
     this.body = body;
   }
 
@@ -414,11 +416,18 @@ class EmbeddingsError extends Error {
     } catch {
       body = undefined;
     }
-    return new EmbeddingsError(`${provider} embeddings request failed (${res.status})`, {
+    const trimmed = typeof body === 'string' && body.length > 0 ? truncateBody(body, 400) : null;
+    const bodyTail = trimmed ? ` — body: ${trimmed}` : '';
+    return new EmbeddingsError(`${provider} embeddings request failed (${res.status})${bodyTail}`, {
       status: res.status,
       body,
     });
   }
+}
+
+function truncateBody(str, max) {
+  if (typeof str !== 'string') return str;
+  return str.length > max ? `${str.slice(0, max)}…` : str;
 }
 
 module.exports = {

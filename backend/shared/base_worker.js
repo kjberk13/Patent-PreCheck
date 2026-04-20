@@ -289,7 +289,16 @@ class BaseWorker {
       const texts = docs.map((d) => d.embedText);
       embeddings = await this.embeddings.embedBatch(texts);
     } catch (err) {
-      throw new EmbeddingError(`embedding failed: ${err.message}`);
+      // Preserve the underlying EmbeddingsError's body on the wrapped
+      // EmbeddingError so the provider's response payload survives the
+      // throw-chain to the CLI's log output.
+      const wrapped = new EmbeddingError(`embedding failed: ${err.message}`);
+      if (err && typeof err === 'object') {
+        if (err.body !== undefined) wrapped.body = err.body;
+        if (err.status !== undefined) wrapped.status = err.status;
+        wrapped.cause = err;
+      }
+      throw wrapped;
     }
     const withEmbeddings = docs.map((d, i) => ({
       source_id: d.source_id,

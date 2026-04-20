@@ -353,3 +353,46 @@ test('with provider=openai, falls back to voyage on openai failure', async () =>
   assert.equal(fallback.from, 'openai');
   assert.equal(fallback.to, 'voyage');
 });
+
+// ---------------------------------------------------------------------
+// Error body surfacing
+// ---------------------------------------------------------------------
+
+test('Voyage 4xx: error message includes the response body', async () => {
+  const voyageBody = JSON.stringify({
+    detail: 'invalid input at index 3: text exceeds 32000 token limit',
+  });
+  nock(VOYAGE_BASE).post(VOYAGE_PATH).reply(400, voyageBody);
+
+  const { adapter } = newAdapter({ openaiApiKey: undefined });
+  await assert.rejects(adapter.embed('oversized'), (err) => {
+    assert.ok(err instanceof EmbeddingsError);
+    assert.match(err.message, /voyage embeddings request failed \(400\)/);
+    assert.match(err.message, /32000 token limit/, 'body must be in message');
+    assert.equal(err.body, voyageBody, 'full body preserved on err.body');
+    return true;
+  });
+});
+
+test('Voyage error message truncates very long bodies (readable logs)', async () => {
+  const bigBody = 'x'.repeat(10_000);
+  nock(VOYAGE_BASE).post(VOYAGE_PATH).reply(400, bigBody);
+
+  const { adapter } = newAdapter({ openaiApiKey: undefined });
+  await assert.rejects(adapter.embed('x'), (err) => {
+    assert.ok(err.message.length < 700, `expected truncation, got ${err.message.length} chars`);
+    assert.equal(err.body.length, 10_000, 'full body still on err.body');
+    return true;
+  });
+});
+
+test('Voyage error with no body still produces a clean message', async () => {
+  nock(VOYAGE_BASE).post(VOYAGE_PATH).reply(400, '');
+
+  const { adapter } = newAdapter({ openaiApiKey: undefined });
+  await assert.rejects(adapter.embed('x'), (err) => {
+    assert.match(err.message, /voyage embeddings request failed \(400\)$/);
+    assert.ok(!err.message.includes(' — body:'));
+    return true;
+  });
+});

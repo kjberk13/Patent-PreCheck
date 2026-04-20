@@ -576,3 +576,43 @@ test('_backoffMs on non-429 still uses the normal base backoff', () => {
   const delay = worker._backoffMs(1, err);
   assert.ok(delay >= 400 && delay <= 700, `expected ~500ms, got ${delay}ms`);
 });
+
+// ---------------------------------------------------------------------
+// EmbeddingError wrapping preserves provider body
+// ---------------------------------------------------------------------
+
+test('_embedAndUpsert wraps embedding failures as EmbeddingError and preserves body/status', async () => {
+  const pagesPlan = [
+    {
+      docs: [{ nativeId: 'a', title: 'Alpha' }],
+      nextCursor: null,
+    },
+  ];
+  const persistence = new MemoryWorkerPersistence();
+  const voyageErr = new Error(
+    'voyage embeddings request failed (400) — body: {"detail":"bad thing"}',
+  );
+  voyageErr.status = 400;
+  voyageErr.body = '{"detail":"bad thing happened"}';
+  const embeddings = new FakeEmbeddings({ throwOnBatch: voyageErr });
+  const worker = makeTestWorker({
+    pagesPlan,
+    persistence,
+    embeddings,
+    logger: () => {},
+  });
+
+  await assert.rejects(
+    () => worker.run({ mode: 'delta' }),
+    (err) => {
+      assert.ok(err instanceof EmbeddingError, 'wrapped as EmbeddingError');
+      assert.match(err.message, /embedding failed/);
+      assert.match(err.message, /voyage embeddings request failed \(400\)/);
+      assert.match(err.message, /body: \{"detail":"bad thing"/, 'body survives the wrap');
+      assert.equal(err.status, 400, 'status copied onto wrapped error');
+      assert.equal(err.body, '{"detail":"bad thing happened"}', 'full body copied');
+      assert.equal(err.cause, voyageErr, 'original cause chained');
+      return true;
+    },
+  );
+});
