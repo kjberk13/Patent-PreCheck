@@ -24,7 +24,8 @@ const OPENAI_BASE = 'https://api.openai.com';
 const OPENAI_PATH = '/v1/embeddings';
 
 function makeVector(seed) {
-  // Deterministic 1536-dim vector. Different seeds → different vectors.
+  // Deterministic vector sized to EMBEDDING_DIMENSIONS (currently 1024).
+  // Different seeds → different vectors.
   const v = new Array(EMBEDDING_DIMENSIONS);
   for (let i = 0; i < EMBEDDING_DIMENSIONS; i += 1) {
     v[i] = ((i * seed) % 100) / 100;
@@ -95,7 +96,7 @@ test.afterEach(() => {
 // Basic single + batch embedding
 // ---------------------------------------------------------------------
 
-test('embed() returns a 1536-dim vector via the primary (voyage)', async () => {
+test('embed() returns a 1024-dim vector via the primary (voyage)', async () => {
   nock(VOYAGE_BASE)
     .post(VOYAGE_PATH)
     .reply(200, voyageReply(['hello']));
@@ -272,7 +273,7 @@ test('cache hits skip the network entirely', async () => {
 test('partial-hit batch: only misses hit the network', async () => {
   const cache = new MemoryCache();
   // Pre-populate cache with one entry under the active model id.
-  const modelId = 'voyage-3-large@1536';
+  const modelId = 'voyage-3-large@1024';
   await cache.set(cacheKeyFor(modelId, 'preheated'), modelId, makeVector(42));
 
   // The provider should only see the single missing input.

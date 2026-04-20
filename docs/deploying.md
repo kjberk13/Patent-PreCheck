@@ -30,7 +30,7 @@ End-to-end runbook for a production-like deploy. Three surfaces:
                                      │                  │                  │
                                      ▼                  ▼                  ▼
                              Anthropic API       Voyage embedding     Neon Postgres
-                              (summary + score)   (1536-dim vectors)   (pgvector)
+                              (summary + score)   (1024-dim vectors)   (pgvector)
                                                                              ▲
                                                                              │
                            ┌─────────────────────────────────────────────────┤
@@ -91,7 +91,7 @@ The repo-root `netlify.toml` drives everything else:
 | `OPENAI_API_KEY` _(optional)_ | openai.com                   | Lambda: embedding fallback |
 | `EMBEDDING_PROVIDER`          | `voyage`                     | Lambda + workers           |
 | `EMBEDDING_MODEL`             | `voyage-3-large`             | Lambda + workers           |
-| `EMBEDDING_DIMENSIONS`        | `1536`                       | Lambda + workers           |
+| `EMBEDDING_DIMENSIONS`        | `1024`                       | Lambda + workers           |
 | `DATABASE_URL`                | Neon direct                  | Workers, migrations        |
 | `DATABASE_URL_POOLED`         | Neon pooled                  | Lambda                     |
 | `SITE_URL`                    | `https://patentprecheck.com` | —                          |

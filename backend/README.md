@@ -77,29 +77,29 @@ SELECT * FROM migrations_applied;   -- expect one row for 001_init.sql
 ### 5. Sanity check the vector index
 
 ```sql
--- Insert three documents with orthogonal 1536-dim embeddings.
+-- Insert three documents with orthogonal 1024-dim embeddings.
 -- Alpha points along dim 1, Beta along dim 2, Gamma along dim 3.
 INSERT INTO prior_art_documents (source_id, native_id, doc_type, title, embedding)
 SELECT 'test', 'alpha', 'patent', 'Alpha',
        ('[' || string_agg(CASE WHEN n = 1 THEN '1.0' ELSE '0.0' END, ',') || ']')::vector
-FROM generate_series(1, 1536) AS n;
+FROM generate_series(1, 1024) AS n;
 
 INSERT INTO prior_art_documents (source_id, native_id, doc_type, title, embedding)
 SELECT 'test', 'beta', 'patent', 'Beta',
        ('[' || string_agg(CASE WHEN n = 2 THEN '1.0' ELSE '0.0' END, ',') || ']')::vector
-FROM generate_series(1, 1536) AS n;
+FROM generate_series(1, 1024) AS n;
 
 INSERT INTO prior_art_documents (source_id, native_id, doc_type, title, embedding)
 SELECT 'test', 'gamma', 'patent', 'Gamma',
        ('[' || string_agg(CASE WHEN n = 3 THEN '1.0' ELSE '0.0' END, ',') || ']')::vector
-FROM generate_series(1, 1536) AS n;
+FROM generate_series(1, 1024) AS n;
 
 -- Nearest-neighbor search with a query vector leaning toward Alpha (dim 1).
 WITH q AS (
   SELECT ('[' || string_agg(
             CASE WHEN n = 1 THEN '0.95' WHEN n = 2 THEN '0.3' ELSE '0.0' END,
             ',') || ']')::vector AS v
-  FROM generate_series(1, 1536) AS n
+  FROM generate_series(1, 1024) AS n
 )
 SELECT title, ROUND((1 - (embedding <=> q.v))::numeric, 4) AS cosine_similarity
 FROM prior_art_documents, q

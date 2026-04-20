@@ -1,12 +1,19 @@
 'use strict';
 
 // =====================================================================
-// Embeddings adapter — Voyage primary, OpenAI fallback, 1536-dim output.
+// Embeddings adapter — Voyage primary, OpenAI fallback, 1024-dim output.
 //
 // Behaviour:
-//   • embed(text)        -> number[]    (1536 floats)
+//   • embed(text)        -> number[]    (1024 floats)
 //   • embedBatch(texts)  -> number[][]  (in input order)
 //
+// • Voyage voyage-3-large uses Matryoshka Representation Learning and
+//   only accepts output_dimension ∈ {256, 512, 1024, 2048}. We
+//   standardise on 1024 — within ~0.3% of 2048 in Voyage's published
+//   retrieval benchmarks at 33% smaller vectors than 1536.
+// • OpenAI text-embedding-3-small supports dimensions=1024 natively
+//   via its Matryoshka-compatible API, so the fallback still returns
+//   same-shape vectors for cache compatibility.
 // • Truncates inputs estimated to exceed MAX_INPUT_TOKENS (8000 token cap,
 //   shared between Voyage and OpenAI). Uses a 3-chars-per-token heuristic
 //   with a small safety margin; logs {event: 'embedding_truncated'} on
@@ -33,7 +40,7 @@ const MAX_INPUT_TOKENS = 8000;
 // voyage tokenizer roughly comparable). Keeps us well clear of provider caps.
 const CHARS_PER_TOKEN = 3.0;
 const MAX_INPUT_CHARS = MAX_INPUT_TOKENS * CHARS_PER_TOKEN;
-const EMBEDDING_DIMENSIONS = 1536;
+const EMBEDDING_DIMENSIONS = 1024;
 
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 const DEFAULT_MAX_ATTEMPTS = 3;
