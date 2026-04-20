@@ -36,6 +36,29 @@
     .file-types{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px}
     .file-type{background:#EEF2FF;color:#4A5568;font-size:11px;font-weight:500;padding:3px 10px;border-radius:20px}
     #file-input{display:none}
+    /* Either/or divider between upload and paste */
+    .input-or{display:flex;align-items:center;gap:12px;margin:22px 0;color:#A0AEC0;font-size:12px;font-weight:500;letter-spacing:.08em;text-transform:uppercase}
+    .input-or::before,.input-or::after{content:"";flex:1;height:1px;background:var(--border)}
+    /* Paste zone — visible alongside the upload zone */
+    .paste-zone{position:relative;transition:opacity .15s}
+    .paste-zone.inactive{opacity:.45}
+    .paste-zone.inactive .paste-textarea{background:#F7FAFC;cursor:pointer}
+    .paste-label{display:block;font-size:13px;font-weight:600;color:var(--navy);margin-bottom:8px}
+    .paste-textarea{width:100%;min-height:180px;padding:14px 16px;border:1.5px dashed var(--border);
+      border-radius:12px;background:#FCFDFF;font-family:'SF Mono','Menlo','Consolas',monospace;
+      font-size:13px;line-height:1.5;color:var(--navy);resize:vertical;transition:border-color .15s,background .15s;
+      -webkit-appearance:none;appearance:none;box-sizing:border-box}
+    .paste-textarea:focus{outline:none;border-color:#1D9E75;border-style:solid;background:#fff}
+    .paste-textarea::placeholder{color:#A0AEC0;font-family:var(--sans);font-size:13px}
+    .paste-meta{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:8px;font-size:12px;color:#718096}
+    .paste-hint{flex:1;min-width:0}
+    .paste-counter{flex-shrink:0;font-variant-numeric:tabular-nums}
+    .paste-counter.at-cap{color:var(--red);font-weight:600}
+    .paste-cap-msg{display:none;font-size:12px;color:var(--red);margin-top:6px}
+    .paste-cap-msg.visible{display:block}
+    /* Upload zone grayed out when paste is active */
+    .drop-zone.inactive{opacity:.45;background:#F7FAFC}
+    .drop-zone.inactive:hover{border-color:var(--border);background:#F7FAFC}
     .file-selected{display:none;background:#EAF3DE;border:1.5px solid #1D9E75;border-radius:10px;
       padding:14px 18px;margin-bottom:20px;align-items:center;gap:12px}
     .file-selected.visible{display:flex}
@@ -212,6 +235,13 @@
       .res-actions{flex-direction:column!important;gap:8px!important}
       .res-action{width:100%}
       .demo-banner{font-size:12px!important;padding:10px 12px!important}
+      .input-or{margin:18px 0!important;font-size:11px!important}
+      .paste-label{font-size:14px!important}
+      .paste-textarea{min-height:160px!important;font-size:14px!important;padding:12px 14px!important}
+      .paste-textarea::placeholder{font-size:14px!important}
+      .paste-meta{flex-direction:column!important;align-items:flex-start!important;gap:4px!important}
+      /* Touch targets: textarea has natural area; file-remove gets enlarged */
+      .file-remove{min-width:44px!important;min-height:44px!important;font-size:20px!important}
     }
     @media(max-width:480px){
       .upload-hero h1{font-size:clamp(26px,9vw,32px)!important}
@@ -274,7 +304,7 @@
     <div class="upload-card">
       <div class="drop-zone" id="dropZone">
         <div style="font-size:40px;margin-bottom:10px">📁</div>
-        <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:6px">Drop your file here, or <span style="color:#1D9E75;cursor:pointer" onclick="document.getElementById('file-input').click()">browse to upload</span></div>
+        <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:6px">Drop your file here, or <span style="color:#1D9E75;cursor:pointer">browse to upload</span></div>
         <div style="font-size:13px;color:#718096">Code, PDF, Word doc, or plain text &nbsp;&middot;&nbsp; <span style="color:#1D9E75;font-weight:500">Always free</span></div>
         <div class="file-types">
           <span class="file-type">.py</span><span class="file-type">.js</span><span class="file-type">.ts</span>
@@ -284,6 +314,17 @@
         </div>
       </div>
       <input type="file" id="file-input" accept=".py,.js,.ts,.jsx,.tsx,.java,.cpp,.c,.cs,.rb,.go,.rs,.swift,.kt,.php,.html,.css,.md,.txt,.pdf,.docx,.doc"/>
+      <div class="input-or" id="inputOr"><span>or</span></div>
+      <div class="paste-zone" id="pasteZone">
+        <textarea id="paste-input" class="paste-textarea" rows="40" spellcheck="false" maxlength="30000"
+          aria-label="Paste your code, content, etc. below"
+          placeholder="Paste your code, content, etc. below"></textarea>
+        <div class="paste-meta">
+          <span class="paste-hint">Plain text, JSON, code — anything you can paste</span>
+          <span class="paste-counter" id="pasteCounter">0 / 30,000</span>
+        </div>
+        <div class="paste-cap-msg" id="pasteCapMsg">Free tier limit reached &mdash; paid tier supports longer inputs.</div>
+      </div>
       <div class="file-selected" id="fileSelected">
         <span style="font-size:20px">✅</span>
         <span class="file-name" id="fileName"></span>
@@ -458,11 +499,39 @@
 
 <script>
 let content = '', fname = '';
+let inputSource = 'none'; // 'none' | 'file' | 'paste'
+const PASTE_CAP = 30000;
+const MIN_CONTENT = 10;
 const $ = id => document.getElementById(id);
 
 function rnd(n){return Array.from({length:n},()=>'0123456789abcdef'[Math.floor(Math.random()*16)]).join('')}
 
+function updateAnalyzeBtn(){
+  $('analyzeBtn').disabled = content.trim().length < MIN_CONTENT;
+}
+
+function setSource(src){
+  inputSource = src;
+  $('dropZone').classList.toggle('inactive', src === 'paste');
+  $('pasteZone').classList.toggle('inactive', src === 'file');
+}
+
+function clearFileUI(){
+  $('file-input').value = '';
+  $('fileSelected').classList.remove('visible');
+  $('dropZone').style.display = '';
+  $('hashBox').style.display = 'none';
+}
+
+function clearPasteUI(){
+  $('paste-input').value = '';
+  $('pasteCounter').textContent = '0 / 30,000';
+  $('pasteCounter').classList.remove('at-cap');
+  $('pasteCapMsg').classList.remove('visible');
+}
+
 async function loadFile(file){
+  clearPasteUI();
   fname = file.name;
   if(file.name.endsWith('.pdf')){
     content = `[PDF: ${file.name}, ${Math.round(file.size/1024)}KB]`;
@@ -474,23 +543,68 @@ async function loadFile(file){
   $('dropZone').style.display = 'none';
   $('hashBox').style.display = 'flex';
   $('hashValue').textContent = `SHA-256: ${rnd(8)}...${rnd(8)}  ·  ${file.name}  ·  ${new Date().toLocaleTimeString()}`;
-  $('analyzeBtn').disabled = false;
   $('errorBox').classList.remove('visible');
+  setSource('file');
+  updateAnalyzeBtn();
 }
 
 $('file-input').addEventListener('change', e=>e.target.files[0]&&loadFile(e.target.files[0]));
+
 $('removeFile').addEventListener('click', ()=>{
-  $('file-input').value=''; content=''; fname='';
-  $('fileSelected').classList.remove('visible');
-  $('dropZone').style.display='';
-  $('hashBox').style.display='none';
-  $('analyzeBtn').disabled=true;
+  clearFileUI(); content=''; fname='';
+  setSource('none');
   $('errorBox').classList.remove('visible');
+  updateAnalyzeBtn();
 });
-$('dropZone').addEventListener('dragover',e=>{e.preventDefault();$('dropZone').classList.add('drag-over');});
+
+$('dropZone').addEventListener('dragover',e=>{
+  e.preventDefault(); $('dropZone').classList.add('drag-over');
+});
 $('dropZone').addEventListener('dragleave',()=>$('dropZone').classList.remove('drag-over'));
-$('dropZone').addEventListener('drop',e=>{e.preventDefault();$('dropZone').classList.remove('drag-over');e.dataTransfer.files[0]&&loadFile(e.dataTransfer.files[0]);});
-$('dropZone').addEventListener('click',()=>$('file-input').click());
+$('dropZone').addEventListener('drop',e=>{
+  e.preventDefault();
+  $('dropZone').classList.remove('drag-over');
+  if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+$('dropZone').addEventListener('click',()=>{
+  if(inputSource === 'paste'){
+    clearPasteUI(); content=''; fname='';
+    setSource('none');
+    updateAnalyzeBtn();
+  }
+  $('file-input').click();
+});
+
+// Paste textarea — focus on inactive zone switches from file→paste
+$('paste-input').addEventListener('focus', ()=>{
+  if(inputSource === 'file'){
+    clearFileUI(); content=''; fname='';
+    setSource('none');
+    updateAnalyzeBtn();
+  }
+});
+
+$('paste-input').addEventListener('input', ()=>{
+  const val = $('paste-input').value;
+  const len = val.length;
+  $('pasteCounter').textContent = len.toLocaleString() + ' / 30,000';
+  const atCap = len >= PASTE_CAP;
+  $('pasteCounter').classList.toggle('at-cap', atCap);
+  $('pasteCapMsg').classList.toggle('visible', atCap);
+  if(val.length > 0){
+    if(inputSource !== 'paste'){
+      clearFileUI();
+      setSource('paste');
+    }
+    content = val;
+    fname = 'pasted.txt';
+  } else {
+    content = ''; fname = '';
+    if(inputSource === 'paste') setSource('none');
+  }
+  $('errorBox').classList.remove('visible');
+  updateAnalyzeBtn();
+});
 
 function animSteps(){
   const ids=['ls1','ls2','ls3','ls4','ls5'];
@@ -630,10 +744,10 @@ function resetError(){
 function resetPage(){
   $('results').style.display='none';
   $('uploadSection').style.display='block';
-  $('file-input').value=''; content=''; fname='';
-  $('fileSelected').classList.remove('visible');
-  $('dropZone').style.display='';
-  $('hashBox').style.display='none';
+  clearFileUI();
+  clearPasteUI();
+  content=''; fname='';
+  setSource('none');
   $('loadingState').classList.remove('visible');
   $('errorBox').classList.remove('visible');
   $('analyzeBtn').style.display='block';
