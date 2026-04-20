@@ -79,15 +79,19 @@ class CursorStaleError extends WorkerError {}
 const TRANSIENT_HTTP_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 function classifyHttpError(status, body, source, { authEnvVar, headers } = {}) {
-  const trimmed = typeof body === 'string' ? truncate(body, 400) : undefined;
-  const bodyTail = trimmed ? ` — body: ${trimmed}` : '';
+  // The message uses a truncated body for log readability; the err.body
+  // property keeps the full text so workers can inspect / parse it when
+  // a source has a known quirk (e.g. arxiv's valid-feed-with-500 case).
+  const bodyStr = typeof body === 'string' ? body : undefined;
+  const trimmedForMessage = bodyStr ? truncate(bodyStr, 400) : undefined;
+  const bodyTail = trimmedForMessage ? ` — body: ${trimmedForMessage}` : '';
   if (status === 401 || status === 403) {
-    return new SourceApiAuthError(source, authEnvVar || inferEnvVar(source), trimmed);
+    return new SourceApiAuthError(source, authEnvVar || inferEnvVar(source), trimmedForMessage);
   }
   if (TRANSIENT_HTTP_STATUS.has(status)) {
     const err = new SourceApiTransientError(`${source} transient HTTP ${status}${bodyTail}`, {
       status,
-      body: trimmed,
+      body: bodyStr,
       source,
     });
     if (status === 429 && headers) {
@@ -98,7 +102,7 @@ function classifyHttpError(status, body, source, { authEnvVar, headers } = {}) {
   }
   return new SourceApiPermanentError(`${source} permanent HTTP ${status}${bodyTail}`, {
     status,
-    body: trimmed,
+    body: bodyStr,
     source,
   });
 }

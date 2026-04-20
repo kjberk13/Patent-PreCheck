@@ -109,6 +109,24 @@ class PatentsViewWorker extends BaseWorker {
           body: JSON.stringify(body),
         });
       } catch (err) {
+        // USPTO ODP returns HTTP 404 with a "No matching records" body
+        // when a valid query matches zero documents. That's a
+        // success-with-empty-result, not an API failure. Terminate the
+        // page loop cleanly; the base class marks the run `success`
+        // with docs_ingested=0.
+        if (
+          err instanceof SourceApiPermanentError &&
+          err.status === 404 &&
+          isEmptyResultBody(err.body)
+        ) {
+          this.logger('info', {
+            event: 'uspto_empty_result_set',
+            source: this.source_id,
+            offset,
+            body_preview: truncateForLog(err.body, 160),
+          });
+          return; // graceful termination
+        }
         if (err instanceof SourceApiPermanentError && err.status === 410) {
           const bodyTail = err.body ? ` — body: ${err.body}` : '';
           throw new SourceApiPermanentError(
@@ -376,6 +394,22 @@ function extractFromBag(bag, keys = ['text', 'value']) {
   return null;
 }
 
+// USPTO ODP 404-as-empty-result signal. Body looks like:
+//   {"code":"404","message":"Not Found","detailedMessage":"No matching records found, ..."}
+// We only treat a 404 as empty-result when the body confirms it — a 404
+// without this signal (e.g. from a wrong URL) still surfaces as a real
+// permanent error.
+function isEmptyResultBody(body) {
+  if (typeof body !== 'string' || body.length === 0) return false;
+  return /no matching records/i.test(body);
+}
+
+function truncateForLog(str, max) {
+  if (typeof str !== 'string') return str;
+  if (str.length <= max) return str;
+  return `${str.slice(0, max)}…`;
+}
+
 function isoDateDaysAgo(now, days) {
   const d = new Date(now);
   d.setUTCDate(d.getUTCDate() - days);
@@ -386,4 +420,9 @@ function todayIso(now) {
   return new Date(now).toISOString().slice(0, 10);
 }
 
-module.exports = { PatentsViewWorker, SOURCE_ID, DEFAULT_ODP_ENDPOINT };
+module.exports = {
+  PatentsViewWorker,
+  SOURCE_ID,
+  DEFAULT_ODP_ENDPOINT,
+  isEmptyResultBody,
+};

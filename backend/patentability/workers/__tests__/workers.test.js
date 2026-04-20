@@ -8,9 +8,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const nock = require('nock');
 
-const { ArxivWorker, parseArxivEntries } = require('../arxiv_worker.js');
+const { ArxivWorker, parseArxivEntries, looksLikeArxivFeed } = require('../arxiv_worker.js');
 const { GitHubWorker } = require('../github_worker.js');
-const { PatentsViewWorker } = require('../patentsview_worker.js');
+const { PatentsViewWorker, isEmptyResultBody } = require('../patentsview_worker.js');
 const { MemoryWorkerPersistence } = require('../../../shared/worker_persistence.js');
 const { SourceApiAuthError } = require('../../../shared/worker_errors.js');
 const { EMBEDDING_DIMENSIONS } = require('../../../shared/embeddings.js');
@@ -550,4 +550,167 @@ test('USPTO ODP worker surfaces a migration hint on HTTP 410', async () => {
       return true;
     },
   );
+});
+
+// ---------------------------------------------------------------------
+// USPTO ODP — HTTP 404 empty-result handling
+// ---------------------------------------------------------------------
+
+const ODP_EMPTY_BODY = JSON.stringify({
+  code: '404',
+  message: 'Not Found',
+  detailedMessage: 'No matching records found, refine your search criteria and try again',
+});
+
+test('isEmptyResultBody recognises the ODP no-match signal (and rejects unrelated 404s)', () => {
+  assert.equal(isEmptyResultBody(ODP_EMPTY_BODY), true);
+  assert.equal(isEmptyResultBody(''), false);
+  assert.equal(isEmptyResultBody('<html>Not Found</html>'), false);
+  assert.equal(isEmptyResultBody(null), false);
+});
+
+test('USPTO ODP worker: HTTP 404 with "No matching records" ends the run as success-with-0-docs', async () => {
+  nock('https://api.uspto.gov')
+    .post('/api/v1/patent/applications/search')
+    .reply(404, ODP_EMPTY_BODY, { 'content-type': 'application/json' });
+
+  const persistence = new MemoryWorkerPersistence();
+  const embeddings = new FakeEmbeddings();
+  const logger = capturingLogger();
+  const worker = new PatentsViewWorker({
+    persistence,
+    embeddings,
+    logger: logger.fn,
+    sleep: () => Promise.resolve(),
+    apiKey: 'uspto-test-key',
+    maxHttpAttempts: 1,
+  });
+
+  const result = await worker.run({ mode: 'delta' });
+
+  assert.equal(result.status, 'success', 'run must finish as success');
+  assert.equal(result.ingested, 0);
+  assert.equal(result.skipped, 0);
+
+  const emptyEvents = logger.byEvent('uspto_empty_result_set');
+  assert.equal(emptyEvents.length, 1, 'empty-result info event must fire exactly once');
+
+  const runs = persistence.getRuns();
+  assert.equal(runs[0].status, 'success');
+  assert.equal(runs[0].docs_ingested, 0);
+});
+
+test('USPTO ODP worker: HTTP 404 WITHOUT the empty-result signal still propagates as a real error', async () => {
+  nock('https://api.uspto.gov')
+    .post('/api/v1/patent/applications/search')
+    .reply(404, '<html>404 Not Found — wrong URL</html>');
+
+  const worker = new PatentsViewWorker({
+    persistence: new MemoryWorkerPersistence(),
+    embeddings: new FakeEmbeddings(),
+    logger: () => {},
+    sleep: () => Promise.resolve(),
+    apiKey: 'k',
+    maxHttpAttempts: 1,
+  });
+
+  await assert.rejects(
+    () => worker.run({ mode: 'delta' }),
+    (err) => /permanent HTTP 404/.test(err.message),
+  );
+});
+
+// ---------------------------------------------------------------------
+// arXiv — HTTP 500 with valid feed body (known upstream quirk)
+// ---------------------------------------------------------------------
+
+const ARXIV_VALID_500_BODY = `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns="http://www.w3.org/2005/Atom">
+  <title>arXiv Search Results</title>
+  <opensearch:itemsPerPage>1</opensearch:itemsPerPage>
+  <opensearch:totalResults>1</opensearch:totalResults>
+  <entry>
+    <id>http://arxiv.org/abs/2501.99999</id>
+    <title>Quirky 500 Paper</title>
+    <summary>Abstract of a paper that came back on a 500 response.</summary>
+    <published>2025-01-15T00:00:00Z</published>
+    <link rel="alternate" href="http://arxiv.org/abs/2501.99999"/>
+    <author><name>A. Author</name></author>
+    <category term="cs.LG"/>
+  </entry>
+</feed>`;
+
+test('looksLikeArxivFeed recognises a real feed and rejects lookalikes', () => {
+  assert.equal(looksLikeArxivFeed(ARXIV_VALID_500_BODY), true);
+  // Missing opensearch marker → not an arxiv feed
+  assert.equal(
+    looksLikeArxivFeed(`<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"/>`),
+    false,
+  );
+  // Plain HTML 500 page
+  assert.equal(looksLikeArxivFeed('<html><body>500 Internal Server Error</body></html>'), false);
+  assert.equal(looksLikeArxivFeed(''), false);
+  assert.equal(looksLikeArxivFeed(null), false);
+});
+
+test('arXiv worker: HTTP 500 with valid feed body is treated as success', async () => {
+  nock('http://export.arxiv.org')
+    .get(/\/api\/query/)
+    .reply(500, ARXIV_VALID_500_BODY, { 'content-type': 'application/atom+xml' });
+  // Empty follow-up ends pagination cleanly.
+  nock('http://export.arxiv.org')
+    .get(/\/api\/query/)
+    .reply(200, '<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"></feed>');
+
+  const persistence = new MemoryWorkerPersistence();
+  const embeddings = new FakeEmbeddings();
+  const logger = capturingLogger();
+  const worker = new ArxivWorker({
+    persistence,
+    embeddings,
+    logger: logger.fn,
+    sleep: () => Promise.resolve(),
+    pageSize: 10,
+    // With default retry=3 we'd hit the 500 mock 3 times; using 1 forces
+    // the arxiv-specific recovery path on the first failure.
+    maxHttpAttempts: 1,
+  });
+
+  const result = await worker.run({ mode: 'backfill', limit: 1 });
+
+  assert.equal(result.status, 'success');
+  assert.equal(result.ingested, 1);
+  const recovery = logger.byEvent('arxiv_500_with_valid_feed');
+  assert.equal(recovery.length, 1, 'recovery event must fire once');
+  assert.equal(persistence.getDocuments()[0].title, 'Quirky 500 Paper');
+});
+
+test('arXiv worker: HTTP 500 with garbage body still fails (no false-positive recovery)', async () => {
+  nock('http://export.arxiv.org')
+    .get(/\/api\/query/)
+    .reply(500, '<html><body>500 Internal Server Error</body></html>');
+
+  const worker = new ArxivWorker({
+    persistence: new MemoryWorkerPersistence(),
+    embeddings: new FakeEmbeddings(),
+    logger: () => {},
+    sleep: () => Promise.resolve(),
+    maxHttpAttempts: 1,
+  });
+  await assert.rejects(
+    () => worker.run({ mode: 'backfill', limit: 1 }),
+    (err) => /transient HTTP 500/.test(err.message),
+  );
+});
+
+// ---------------------------------------------------------------------
+// Error body preservation
+// ---------------------------------------------------------------------
+
+test('classifyHttpError preserves full response body on .body even when message is truncated', () => {
+  const { classifyHttpError } = require('../../../shared/worker_errors.js');
+  const big = 'x'.repeat(5_000);
+  const err = classifyHttpError(500, big, 'src');
+  assert.equal(err.body.length, 5_000, 'full body preserved on .body');
+  assert.ok(err.message.length < 700, 'message still truncated for readability');
 });

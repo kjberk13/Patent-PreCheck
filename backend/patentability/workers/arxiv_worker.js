@@ -18,7 +18,11 @@
 // =====================================================================
 
 const { BaseWorker } = require('../../shared/base_worker.js');
-const { DocumentValidationError, SourceSchemaError } = require('../../shared/worker_errors.js');
+const {
+  DocumentValidationError,
+  SourceApiTransientError,
+  SourceSchemaError,
+} = require('../../shared/worker_errors.js');
 
 const SOURCE_ID = 'arxiv';
 const DEFAULT_ENDPOINT = 'http://export.arxiv.org/api/query';
@@ -54,8 +58,32 @@ class ArxivWorker extends BaseWorker {
         `&start=${offset}&max_results=${perPage}` +
         `&sortBy=submittedDate&sortOrder=ascending`;
 
-      const res = await this.fetchPage(url);
-      const xml = await res.text();
+      // arXiv quirk: some responses come back with HTTP 500 but contain a
+      // fully valid Atom feed body. Treat that case as success if the
+      // body parses. Genuine 500s (empty body, HTML error page, etc.)
+      // still propagate through the base class retry path.
+      let xml;
+      try {
+        const res = await this.fetchPage(url);
+        xml = await res.text();
+      } catch (err) {
+        if (
+          err instanceof SourceApiTransientError &&
+          err.status === 500 &&
+          typeof err.body === 'string' &&
+          looksLikeArxivFeed(err.body)
+        ) {
+          this.logger('warn', {
+            event: 'arxiv_500_with_valid_feed',
+            source: this.source_id,
+            body_length: err.body.length,
+          });
+          xml = err.body;
+        } else {
+          throw err;
+        }
+      }
+
       const entries = parseArxivEntries(xml);
 
       if (entries.length === 0) return;
@@ -117,6 +145,20 @@ class ArxivWorker extends BaseWorker {
 // Exported for unit testing.
 // ---------------------------------------------------------------------
 
+// Heuristic: does this body look like a real arxiv Atom feed? Used to
+// decide whether a 500 response is arxiv's valid-body-with-wrong-status
+// quirk or a genuine server error.
+function looksLikeArxivFeed(body) {
+  if (typeof body !== 'string' || body.length === 0) return false;
+  // Must be XML-ish, contain a <feed> element, and carry arxiv's
+  // opensearch total-results element (present on every search response).
+  return (
+    /<\?xml/.test(body) &&
+    /<feed\b[^>]*xmlns\s*=\s*["']http:\/\/www\.w3\.org\/2005\/Atom["']/.test(body) &&
+    /<opensearch:totalResults>/.test(body)
+  );
+}
+
 function parseArxivEntries(xml) {
   if (typeof xml !== 'string' || xml.length === 0) return [];
   const entries = [];
@@ -172,4 +214,4 @@ function decode(str) {
     .replace(/&#39;/g, "'");
 }
 
-module.exports = { ArxivWorker, parseArxivEntries, SOURCE_ID };
+module.exports = { ArxivWorker, parseArxivEntries, looksLikeArxivFeed, SOURCE_ID };
