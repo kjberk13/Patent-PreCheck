@@ -27,11 +27,10 @@
 
 require('dotenv').config();
 
-const { Pool } = require('pg');
-
 const { Embeddings } = require('../shared/embeddings.js');
 const { PostgresWorkerPersistence } = require('../shared/worker_persistence.js');
 const { WorkerError, CursorStaleError, WorkerLockError } = require('../shared/worker_errors.js');
+const { createPgPool } = require('../shared/pool.js');
 const {
   getEntry,
   listImplemented,
@@ -39,7 +38,43 @@ const {
   STATUS_IMPLEMENTED,
 } = require('./workers/registry.js');
 
-function parseArgs(argv) {
+// Env-var overrides for Railway ad-hoc backfills.
+//
+// The ingest-delta Railway service runs `npm run ingest:delta`, whose
+// CLI args are hard-coded to `--all --mode=delta`. To convert a single
+// run into a backfill without editing the Procfile or redeploying, the
+// operator sets env vars on the service and redeploys:
+//
+//   INGEST_MODE=backfill     overrides --mode
+//   INGEST_LIMIT=15000       overrides --limit
+//   INGEST_SOURCE=uspto-...  overrides --all / --source (runs one source)
+//   INGEST_RESUME=1          sets --resume
+//   INGEST_FORCE=1           sets --force
+//   INGEST_DRY_RUN=1         sets --dry-run
+//
+// When unset, behavior matches the bare CLI. Env overrides CLI (not the
+// usual precedence) precisely because the CLI args come from the
+// Procfile and can't be changed on-the-fly from the Railway dashboard.
+// Clear the env var when the one-off job is done so subsequent cron
+// runs return to delta mode.
+function envOverrides(env = process.env) {
+  const out = {};
+  if (env.INGEST_MODE) out.mode = env.INGEST_MODE;
+  if (env.INGEST_LIMIT) out.limit = Number.parseInt(env.INGEST_LIMIT, 10);
+  if (env.INGEST_SOURCE) out.source = env.INGEST_SOURCE;
+  if (isTruthyEnv(env.INGEST_RESUME)) out.resume = true;
+  if (isTruthyEnv(env.INGEST_FORCE)) out.force = true;
+  if (isTruthyEnv(env.INGEST_DRY_RUN)) out.dryRun = true;
+  return out;
+}
+
+function isTruthyEnv(v) {
+  if (v == null) return false;
+  const s = String(v).trim().toLowerCase();
+  return s === '1' || s === 'true' || s === 'yes' || s === 'on';
+}
+
+function parseArgs(argv, env = process.env) {
   const opts = {
     source: null,
     all: false,
@@ -62,6 +97,20 @@ function parseArgs(argv) {
     else if (raw === '-h' || raw === '--help') opts.list = true;
     else throw new Error(`unknown argument: ${raw}`);
   }
+  // Env vars layer over CLI. If INGEST_SOURCE is set, it narrows the
+  // run to one source even if --all was on the CLI (clears .all so
+  // downstream logic treats it as a single-source run).
+  const overrides = envOverrides(env);
+  if (overrides.mode !== undefined) opts.mode = overrides.mode;
+  if (overrides.limit !== undefined) opts.limit = overrides.limit;
+  if (overrides.source !== undefined) {
+    opts.source = overrides.source;
+    opts.all = false;
+  }
+  if (overrides.resume !== undefined) opts.resume = overrides.resume;
+  if (overrides.force !== undefined) opts.force = overrides.force;
+  if (overrides.dryRun !== undefined) opts.dryRun = overrides.dryRun;
+
   if (opts.limit != null && (!Number.isFinite(opts.limit) || opts.limit < 1)) {
     throw new Error(`--limit must be a positive integer, got: ${opts.limit}`);
   }
@@ -69,7 +118,9 @@ function parseArgs(argv) {
     throw new Error(`--mode must be 'backfill' or 'delta', got: ${opts.mode}`);
   }
   if (!opts.list && !opts.source && !opts.all) {
-    throw new Error('one of --source=<id>, --all, or --list is required');
+    throw new Error(
+      'one of --source=<id>, --all, --list, or INGEST_SOURCE env var is required',
+    );
   }
   if (opts.force && !opts.resume) {
     throw new Error('--force only makes sense with --resume');
@@ -97,7 +148,7 @@ function printRegistry() {
 async function buildRunnerContext() {
   const validated = validateDatabaseUrl(process.env.DATABASE_URL);
   logStartup(validated);
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = createPgPool(process.env.DATABASE_URL, { logger: log });
   await preflightDatabaseConnection(pool);
   const persistence = new PostgresWorkerPersistence(pool);
   const embeddings = new Embeddings({ pgPool: pool });

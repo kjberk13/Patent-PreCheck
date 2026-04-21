@@ -7,7 +7,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { validateDatabaseUrl, redactPassword } = require('../ingest.js');
+const { validateDatabaseUrl, redactPassword, parseArgs } = require('../ingest.js');
 
 const VALID =
   'postgresql://ppc:secret@ep-falling-butterfly-ama13o3n.c-5.us-east-1.aws.neon.tech/patentprecheck?sslmode=require';
@@ -92,4 +92,67 @@ test('redactPassword handles URL without a password', () => {
   const out = redactPassword('postgresql://ppc@host/db');
   assert.equal(typeof out, 'string');
   assert.ok(out.includes('ppc'));
+});
+
+// ---------------------------------------------------------------------
+// parseArgs + env-var overrides
+//
+// Semantics: env vars take precedence over CLI args so a Railway
+// operator can flip the ingest-delta service into backfill mode
+// without editing the Procfile or redeploying a code change.
+// ---------------------------------------------------------------------
+
+test('parseArgs: CLI args alone behave as before (delta defaults)', () => {
+  const opts = parseArgs(['--all', '--mode=delta'], {});
+  assert.equal(opts.mode, 'delta');
+  assert.equal(opts.all, true);
+  assert.equal(opts.source, null);
+  assert.equal(opts.limit, null);
+});
+
+test('parseArgs: INGEST_MODE env overrides --mode=delta CLI arg', () => {
+  const opts = parseArgs(['--all', '--mode=delta'], { INGEST_MODE: 'backfill' });
+  assert.equal(opts.mode, 'backfill');
+});
+
+test('parseArgs: INGEST_LIMIT env overrides --limit CLI arg', () => {
+  const opts = parseArgs(['--all'], { INGEST_LIMIT: '15000' });
+  assert.equal(opts.limit, 15000);
+});
+
+test('parseArgs: INGEST_SOURCE env overrides --all and narrows to one source', () => {
+  const opts = parseArgs(['--all'], { INGEST_SOURCE: 'uspto-patentsview' });
+  assert.equal(opts.source, 'uspto-patentsview');
+  assert.equal(opts.all, false, 'INGEST_SOURCE clears --all');
+});
+
+test('parseArgs: INGEST_RESUME / INGEST_FORCE / INGEST_DRY_RUN accept truthy strings', () => {
+  for (const v of ['1', 'true', 'TRUE', 'yes', 'on']) {
+    const opts = parseArgs(['--all'], { INGEST_RESUME: v, INGEST_FORCE: v, INGEST_DRY_RUN: v });
+    assert.equal(opts.resume, true, `resume for ${v}`);
+    assert.equal(opts.force, true, `force for ${v}`);
+    assert.equal(opts.dryRun, true, `dryRun for ${v}`);
+  }
+});
+
+test('parseArgs: INGEST_* env vars treat empty / unset / "0" as off', () => {
+  const opts = parseArgs(['--all'], { INGEST_RESUME: '', INGEST_FORCE: '0', INGEST_DRY_RUN: undefined });
+  assert.equal(opts.resume, false);
+  assert.equal(opts.force, false);
+  assert.equal(opts.dryRun, false);
+});
+
+test('parseArgs: invalid INGEST_MODE surfaces a clear error', () => {
+  assert.throws(
+    () => parseArgs(['--all'], { INGEST_MODE: 'turbo' }),
+    /--mode must be 'backfill' or 'delta'/,
+  );
+});
+
+test('parseArgs: INGEST_SOURCE alone (no CLI target) is a valid run shape', () => {
+  // Simulates the Railway Procfile-free override case.
+  const opts = parseArgs([], { INGEST_SOURCE: 'arxiv', INGEST_MODE: 'backfill' });
+  assert.equal(opts.source, 'arxiv');
+  assert.equal(opts.mode, 'backfill');
+  assert.equal(opts.all, false);
 });

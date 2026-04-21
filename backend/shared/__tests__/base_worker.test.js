@@ -60,6 +60,7 @@ function makeTestWorker({
   now,
   authEnvVar,
   sourceId = 'test-source',
+  checkpointInterval,
 } = {}) {
   class TestWorker extends BaseWorker {
     constructor(opts) {
@@ -95,6 +96,7 @@ function makeTestWorker({
     logger,
     sleep: () => Promise.resolve(),
     now,
+    checkpointInterval,
   });
 }
 
@@ -615,4 +617,116 @@ test('_embedAndUpsert wraps embedding failures as EmbeddingError and preserves b
       return true;
     },
   );
+});
+
+// ---------------------------------------------------------------------
+// ingest_checkpoint cadence — progress visibility during long backfills
+// ---------------------------------------------------------------------
+
+test('ingest_checkpoint fires once per checkpointInterval gap', async () => {
+  // Granularity is per-page: a checkpoint fires at the end of the
+  // first page whose completion pushes `ingested` at least `interval`
+  // docs past the previous checkpoint.
+  //
+  // Plan with checkpointInterval=3:
+  //   page 1 → 2 ingested  (2 < 3, no checkpoint)
+  //   page 2 → 5 ingested  (5 - 0 ≥ 3, checkpoint at 5)
+  //   page 3 → 7 ingested  (7 - 5 = 2 < 3, no checkpoint)
+  const pagesPlan = [
+    {
+      docs: [
+        { nativeId: 'a', title: 'A' },
+        { nativeId: 'b', title: 'B' },
+      ],
+      nextCursor: { page: 1 },
+    },
+    {
+      docs: [
+        { nativeId: 'c', title: 'C' },
+        { nativeId: 'd', title: 'D' },
+        { nativeId: 'e', title: 'E' },
+      ],
+      nextCursor: { page: 2 },
+    },
+    {
+      docs: [
+        { nativeId: 'f', title: 'F' },
+        { nativeId: 'g', title: 'G' },
+      ],
+      nextCursor: { page: 3 },
+    },
+  ];
+  const persistence = new MemoryWorkerPersistence();
+  const embeddings = new FakeEmbeddings();
+  const logger = new CapturingLogger();
+  const worker = makeTestWorker({
+    pagesPlan,
+    persistence,
+    embeddings,
+    logger: logger.fn,
+    checkpointInterval: 3,
+  });
+
+  await worker.run({ mode: 'backfill' });
+
+  const checkpoints = logger.byEvent('ingest_checkpoint');
+  assert.equal(checkpoints.length, 1, 'one checkpoint fired at page 2');
+  assert.equal(checkpoints[0].docs_ingested, 5);
+  assert.equal(checkpoints[0].source, 'test-source');
+  assert.ok(checkpoints[0].cursor, 'cursor included for crash-recovery context');
+});
+
+test('ingest_checkpoint fires multiple times for a long run', async () => {
+  // Every page has 5 docs; checkpointInterval=10 → checkpoint at the
+  // end of every second page.
+  const pagesPlan = Array.from({ length: 6 }, (_, p) => ({
+    docs: Array.from({ length: 5 }, (_, i) => ({
+      nativeId: `p${p}d${i}`,
+      title: `P${p} D${i}`,
+    })),
+    nextCursor: { page: p + 1 },
+  }));
+  const persistence = new MemoryWorkerPersistence();
+  const embeddings = new FakeEmbeddings();
+  const logger = new CapturingLogger();
+  const worker = makeTestWorker({
+    pagesPlan,
+    persistence,
+    embeddings,
+    logger: logger.fn,
+    checkpointInterval: 10,
+  });
+
+  await worker.run({ mode: 'backfill' });
+
+  const checkpoints = logger.byEvent('ingest_checkpoint');
+  // 30 docs total, checkpoints at 10/20/30.
+  assert.equal(checkpoints.length, 3);
+  assert.deepEqual(
+    checkpoints.map((c) => c.docs_ingested),
+    [10, 20, 30],
+  );
+});
+
+test('ingest_checkpoint: interval=0 disables checkpoints entirely', async () => {
+  const pagesPlan = [
+    {
+      docs: Array.from({ length: 10 }, (_, i) => ({ nativeId: `x${i}`, title: `X${i}` })),
+      nextCursor: { page: 1 },
+    },
+  ];
+  const persistence = new MemoryWorkerPersistence();
+  const embeddings = new FakeEmbeddings();
+  const logger = new CapturingLogger();
+  const worker = makeTestWorker({
+    pagesPlan,
+    persistence,
+    embeddings,
+    logger: logger.fn,
+    checkpointInterval: 0,
+  });
+
+  await worker.run({ mode: 'backfill' });
+
+  assert.equal(logger.byEvent('ingest_checkpoint').length, 0);
 });

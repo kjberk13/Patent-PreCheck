@@ -354,9 +354,8 @@ function resolveCache(cache, pgPool) {
   // present (workers in production), else NullCache (tests, local CLI use).
   if (process.env.DATABASE_URL) {
     // Lazy-require so tests/CLI tools without pg installed don't pay for it.
-    const { Pool } = require('pg');
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    return new PostgresEmbeddingCache(pool);
+    const { createPgPool } = require('./pool.js');
+    return new PostgresEmbeddingCache(createPgPool(process.env.DATABASE_URL));
   }
   return new NullCache();
 }

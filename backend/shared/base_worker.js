@@ -52,6 +52,12 @@ const DEFAULT_BASE_BACKOFF_MS = 500;
 const CURSOR_STALENESS_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 const SKIP_RATE_MIN_BATCH = 50;
 const SKIP_RATE_THRESHOLD = 0.25;
+// Emit a progress checkpoint every N ingested docs. Makes long
+// backfills observable in real time and pins down how far we got
+// before a mid-run crash (docs_ingested also lands in
+// source_ingestion_log on every page, but a log line is easier to
+// eyeball in Railway's log tail).
+const DEFAULT_CHECKPOINT_INTERVAL = 100;
 
 class BaseWorker {
   constructor(opts = {}) {
@@ -66,6 +72,8 @@ class BaseWorker {
       now = () => new Date(),
       sleep: sleepImpl = defaultSleep,
       randomJitter = Math.random,
+      checkpointInterval = parsePositiveInt(process.env.INGEST_CHECKPOINT_INTERVAL) ??
+        DEFAULT_CHECKPOINT_INTERVAL,
     } = opts;
 
     if (!persistence) throw new TypeError('BaseWorker requires { persistence }');
@@ -80,6 +88,7 @@ class BaseWorker {
     this.now = now;
     this._sleep = sleepImpl;
     this.randomJitter = randomJitter;
+    this.checkpointInterval = checkpointInterval;
 
     const rps = requestsPerSecond ?? this.requestsPerSecond ?? 2;
     this.limiter = new RateLimiter({
@@ -114,6 +123,7 @@ class BaseWorker {
     const runId = dryRun ? null : await this.persistence.startRun(source, mode, cursor);
     let ingested = 0;
     let skipped = 0;
+    let lastCheckpointAt = 0; // ingested count at the last checkpoint log
 
     try {
       this.logger('info', {
@@ -163,6 +173,25 @@ class BaseWorker {
             docs_skipped: skipped,
             cursor,
           });
+        }
+
+        // Periodic progress checkpoint. Fires at the first page whose
+        // completion pushes `ingested` at least `checkpointInterval`
+        // docs past the last emit. Makes long backfills tailable in
+        // Railway's log viewer and gives an immediate "we got to N
+        // docs before crashing" read if the run dies mid-flight.
+        // Granularity is per-page (not per-doc), which is fine — for
+        // 25-doc pages and the default interval=100, checkpoints land
+        // every ~4 pages.
+        if (this.checkpointInterval > 0 && ingested - lastCheckpointAt >= this.checkpointInterval) {
+          this.logger('info', {
+            event: 'ingest_checkpoint',
+            source,
+            docs_ingested: ingested,
+            docs_skipped: skipped,
+            cursor,
+          });
+          lastCheckpointAt = ingested;
         }
       }
 
@@ -420,6 +449,13 @@ function defaultSleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function parsePositiveInt(raw) {
+  if (raw == null) return null;
+  const n = Number(String(raw).trim());
+  if (!Number.isInteger(n) || n <= 0) return null;
+  return n;
+}
+
 function defaultLogger(level, event) {
   const want = process.env.LOG_LEVEL || 'info';
   if (level === 'debug' && want !== 'debug') return;
@@ -433,4 +469,5 @@ module.exports = {
   CURSOR_STALENESS_WINDOW_MS,
   SKIP_RATE_MIN_BATCH,
   SKIP_RATE_THRESHOLD,
+  DEFAULT_CHECKPOINT_INTERVAL,
 };

@@ -151,19 +151,66 @@ Set in the Railway dashboard (Service → Settings → Cron) or via CLI. Suggest
 
 **Target:** ~23k docs total, ~90 min wall time, ~$2 Voyage spend.
 
-```bash
-# Log in
-railway login
-railway link    # link to the project
+Backfills must run **inside Railway's network**, not tunneled through it from a laptop. `railway run ...` from your local machine works for short jobs, but long-running DB connections over the tunnel get dropped by wifi blips / Neon idle timers / Railway's proxy, crashing the process mid-run (observed: `EADDRNOTAVAIL` after ~280 queries and ~40 MB transferred).
 
-# arXiv cs.LG, 2025-Q1 forward (~8k docs, ~45 min)
-railway run npm run ingest -- --source=arxiv --mode=backfill --limit=8000
+To run backfills on Railway, set env vars on the `ingest-delta` service and redeploy. The `ingest:delta` npm script still runs `--all --mode=delta`, but the ingest CLI honours these overrides at startup:
 
-# USPTO G06N (AI/ML) last 24 months (~15k docs, ~45 min)
-railway run npm run ingest -- --source=uspto-patentsview --mode=backfill --limit=15000
+| Env var                      | Overrides   | Example                |
+| ---------------------------- | ----------- | ---------------------- |
+| `INGEST_MODE`                | `--mode`    | `backfill`             |
+| `INGEST_LIMIT`               | `--limit`   | `15000`                |
+| `INGEST_SOURCE`              | `--all`     | `uspto-patentsview`    |
+| `INGEST_RESUME`              | `--resume`  | `1`                    |
+| `INGEST_FORCE`               | `--force`   | `1`                    |
+| `INGEST_DRY_RUN`             | `--dry-run` | `1`                    |
+| `INGEST_CHECKPOINT_INTERVAL` | log cadence | `100` (default; 0=off) |
+
+**Workflow for a one-off USPTO backfill:**
+
+```
+# In Railway dashboard → ingest-delta service → Variables:
+INGEST_MODE=backfill
+INGEST_LIMIT=15000
+INGEST_SOURCE=uspto-patentsview
+
+# Then click Deploy → Redeploy. The next service run does the
+# backfill inside Railway's network (no tunnel, direct Neon
+# connection).
+#
+# Watch the log tail for ingest_checkpoint events every 100 docs,
+# and a final worker_run_finished with status=success.
+#
+# When done, delete INGEST_MODE / INGEST_LIMIT / INGEST_SOURCE so
+# the next scheduled cron run resumes delta ingestion.
 ```
 
-Watch logs in Railway dashboard while running. Successful completion writes a row to `source_ingestion_log` with `status='success'`.
+**Full 2.6.1 smoke plan (two sequential one-offs):**
+
+```
+# 1. arXiv cs.LG, 2025-Q1 forward (~8k docs, ~45 min)
+INGEST_MODE=backfill
+INGEST_LIMIT=8000
+INGEST_SOURCE=arxiv
+# → Redeploy, wait for completion, clear vars.
+
+# 2. USPTO G06N (AI/ML) last 24 months (~15k docs, ~45 min)
+INGEST_MODE=backfill
+INGEST_LIMIT=15000
+INGEST_SOURCE=uspto-patentsview
+# → Redeploy, wait for completion, clear vars.
+```
+
+**Last resort — laptop-tunneled run:**
+
+If you really need to run from a laptop (e.g. quick single-source smoke against the real DB), the pool now has an idle-client error handler + TCP keepalive, so transient socket drops log a `pg_pool_idle_client_error` warning and the pool transparently creates a fresh client instead of crashing:
+
+```bash
+railway login
+railway link
+railway run npm run ingest -- --source=arxiv --mode=backfill --limit=500
+```
+
+Successful completion writes a row to `source_ingestion_log` with `status='success'`.
 
 ### Phase 2.6.2 full demo corpus
 
