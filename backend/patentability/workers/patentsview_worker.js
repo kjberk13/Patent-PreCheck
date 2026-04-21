@@ -98,6 +98,30 @@ class PatentsViewWorker extends BaseWorker {
     while (true) {
       const body = this._buildQuery(mode, offset);
 
+      // Structured log of the exact URL + body sent to USPTO. Emitted
+      // at INFO on the first page so Kevin (and future-me) can see the
+      // canonical payload without cranking log level; subsequent pages
+      // log at DEBUG with just the offset to avoid spamming 150 lines
+      // during a 15k-doc backfill.
+      if (offset === 0) {
+        this.logger('info', {
+          event: 'uspto_request',
+          source: this.source_id,
+          url: this.endpoint,
+          offset,
+          mode,
+          request_body: body,
+        });
+      } else {
+        this.logger('debug', {
+          event: 'uspto_request',
+          source: this.source_id,
+          url: this.endpoint,
+          offset,
+          mode,
+        });
+      }
+
       let res;
       try {
         res = await this.fetchPage(this.endpoint, {
@@ -267,11 +291,18 @@ class PatentsViewWorker extends BaseWorker {
 
   // Build the ODP search request body per the canonical Swagger shape.
   //
-  // The query narrows to Utility applications in a date range, with a
-  // Lucene clause for CPC symbol prefixes. CPC symbols are hierarchical
-  // (e.g. "G06F 7/00"), so we use wildcard matches under the
-  // cpcClassificationBag — an exact-value `filters` entry wouldn't
-  // match anything more specific than the top-level group.
+  // CPC note (important): applicationMetaData.cpcClassificationBag is
+  // an array of PLAIN STRINGS (e.g. ["G06F7/00", "H01L29/66"]), not an
+  // array of objects. There is no `cpcSymbolText` / `cpcClassificationText`
+  // sub-key — the earlier worker queried a non-existent path and USPTO
+  // returned 0 results for every run. We now match the array path
+  // directly with a Lucene wildcard, which the ODP Swagger explicitly
+  // documents (query examples show `cpcClassificationBag:G06F*`).
+  //
+  // Type note: applicationTypeLabelName is the Utility/Plant/Design/
+  // Reissue label (e.g. "Utility"). applicationTypeCategory is a
+  // separate tech-area field (e.g. "electronics") and must NOT be used
+  // as a Utility filter.
   _buildQuery(mode, offset) {
     const from =
       mode === 'delta'
@@ -281,12 +312,18 @@ class PatentsViewWorker extends BaseWorker {
 
     const q = this.customQuery || this._buildDefaultQ();
 
-    return {
+    const body = {
       q,
-      // filters[] is reserved for future exact-match narrowing (e.g.
-      // pulling only "Patented Case" status). Keep empty for now so
-      // the delta window captures pending applications too.
-      filters: [],
+      // Exact-match type filter via filters[] — cleaner than stuffing
+      // it into q, and ODP canonical examples favor this shape. The
+      // `value` array is multi-valued → OR logic, which is why CPC
+      // prefixes stay in q (they need wildcard matching).
+      filters: [
+        {
+          name: 'applicationMetaData.applicationTypeLabelName',
+          value: ['Utility'],
+        },
+      ],
       rangeFilters: [
         {
           field: 'applicationMetaData.filingDate',
@@ -309,20 +346,21 @@ class PatentsViewWorker extends BaseWorker {
       // which helps while the abstract-field path is still being
       // verified. We can narrow once the schema is pinned.
     };
+
+    return body;
   }
 
   _buildDefaultQ() {
-    const typeClause = 'applicationMetaData.applicationTypeLabelName:Utility';
     if (!this.cpcGroups || this.cpcGroups.length === 0) {
-      return typeClause;
+      // With no CPC narrowing, the type+date filters carry the whole
+      // query. `*:*` is the ODP convention for "match everything in q".
+      return '*:*';
     }
-    // Lucene wildcard match on the nested bag path. `G06F*` matches
-    // G06F, G06F 7/00, G06F 16/00, etc. Joined with OR so any matching
-    // CPC group qualifies the document.
-    const cpcClause = this.cpcGroups
-      .map((g) => `applicationMetaData.cpcClassificationBag.cpcSymbolText:${g}*`)
-      .join(' OR ');
-    return `${typeClause} AND (${cpcClause})`;
+    // Lucene wildcard match against the cpcClassificationBag string
+    // array. Single parenthesized OR clause is cleaner than N separate
+    // `field:value` clauses joined by OR.
+    const cpcValues = this.cpcGroups.map((g) => `${g}*`).join(' OR ');
+    return `applicationMetaData.cpcClassificationBag:(${cpcValues})`;
   }
 }
 

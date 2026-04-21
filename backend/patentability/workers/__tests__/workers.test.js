@@ -292,7 +292,7 @@ function odpFixture(ids) {
         filingDate: '2024-06-01',
         applicationTypeLabelName: 'Utility',
         applicationStatusDescriptionText: 'Patented Case',
-        cpcClassificationBag: [{ cpcSymbolText: `G06F 7/${i.toString().padStart(2, '0')}` }],
+        cpcClassificationBag: [`G06F7/${i.toString().padStart(2, '0')}`],
         applicantBag: [{ applicantNameText: `Co ${i}` }],
       },
     })),
@@ -349,9 +349,15 @@ test('USPTO ODP worker: POSTs canonical Swagger schema with X-Api-Key', async ()
   // The request body must match the ODP canonical schema.
   assert.ok(capturedBody, 'request body captured by nock interceptor');
   assert.equal(typeof capturedBody.q, 'string', 'q is a string');
-  assert.match(capturedBody.q, /applicationTypeLabelName:Utility/);
-  assert.match(capturedBody.q, /cpcClassificationBag\.cpcSymbolText:G06F\*/);
-  assert.deepEqual(capturedBody.filters, []);
+  // CPC is queried directly against the bag string-array (no sub-key);
+  // the previous `cpcClassificationBag.cpcSymbolText` path matched
+  // nothing because the bag is an array of plain strings.
+  assert.match(capturedBody.q, /applicationMetaData\.cpcClassificationBag:\(G06F\*/);
+  // Utility type lives in filters[] per ODP canonical shape (multi-
+  // value OR via the `value` array), not stuffed into q.
+  assert.equal(capturedBody.filters.length, 1);
+  assert.equal(capturedBody.filters[0].name, 'applicationMetaData.applicationTypeLabelName');
+  assert.deepEqual(capturedBody.filters[0].value, ['Utility']);
   assert.equal(capturedBody.rangeFilters[0].field, 'applicationMetaData.filingDate');
   assert.ok(capturedBody.rangeFilters[0].valueFrom, 'rangeFilters.valueFrom present');
   assert.ok(capturedBody.rangeFilters[0].valueTo, 'rangeFilters.valueTo present');
@@ -377,7 +383,7 @@ test('USPTO ODP worker: parseDocument reads from applicationMetaData (nested ODP
       filingDate: '2023-04-15',
       applicationTypeLabelName: 'Utility',
       applicationStatusDescriptionText: 'Patented Case',
-      cpcClassificationBag: [{ cpcSymbolText: 'G06N 3/08' }],
+      cpcClassificationBag: ['G06N3/08', 'G06N3/04'],
       applicantBag: [{ applicantNameText: 'Widget Corp' }],
     },
   });
@@ -387,7 +393,8 @@ test('USPTO ODP worker: parseDocument reads from applicationMetaData (nested ODP
   assert.equal(doc.published_at, '2023-04-15');
   assert.equal(doc.metadata.application_type, 'Utility');
   assert.equal(doc.metadata.had_abstract, true);
-  assert.equal(doc.metadata.cpc_classifications[0].cpcSymbolText, 'G06N 3/08');
+  // cpcClassificationBag is an array of plain strings per ODP Swagger.
+  assert.deepEqual(doc.metadata.cpc_classifications, ['G06N3/08', 'G06N3/04']);
 });
 
 test('USPTO ODP worker: parseDocument tries abstractBag fallback for nested text', () => {
