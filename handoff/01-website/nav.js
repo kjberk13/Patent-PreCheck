@@ -130,7 +130,7 @@
       <circle class="ppc-logo-node ppc-logo-node-1" cx="12" cy="21" r="2.7" fill="#1D9E75"/>
       <circle class="ppc-logo-node ppc-logo-node-2" cx="16" cy="27" r="3.4" fill="#1D9E75"/>
       <circle class="ppc-logo-node ppc-logo-node-3" cx="28" cy="16" r="2.7" fill="#1D9E75"/>
-      <text x="56" y="27" font-family="'Playfair Display',Georgia,serif" font-size="19" font-weight="700" fill="#0C2340">Patent PreCheck</text>
+      <text x="56" y="27" font-family="'Playfair Display',Georgia,serif" font-size="19" font-weight="700" fill="#0C2340">Patent PreCheck<tspan font-size="10" dy="-7">&#8482;</tspan></text>
     </svg>
   </a>
   <div class="ppc-nav-links">${linksHtml}</div>
@@ -157,7 +157,7 @@
       <circle class="ppc-logo-node ppc-logo-node-1" cx="8" cy="15" r="2" fill="#1D9E75"/>
       <circle class="ppc-logo-node ppc-logo-node-2" cx="11" cy="20" r="2.5" fill="#1D9E75"/>
       <circle class="ppc-logo-node ppc-logo-node-3" cx="21" cy="11" r="2" fill="#1D9E75"/>
-      <text x="42" y="19" font-family="'Playfair Display',Georgia,serif" font-size="14" font-weight="700" fill="white">Patent PreCheck</text>
+      <text x="42" y="19" font-family="'Playfair Display',Georgia,serif" font-size="14" font-weight="700" fill="white">Patent PreCheck<tspan font-size="8" dy="-5">&#8482;</tspan></text>
     </svg>
   </div>
   <p class="ppc-footer-links">
@@ -169,7 +169,7 @@
     <a href="privacy.html">Privacy</a>
     <a href="terms.html">Terms</a>
   </p>
-  <p class="ppc-footer-copy">&copy; 2026 Patent PreCheck &nbsp;&middot;&nbsp; Not legal advice &nbsp;&middot;&nbsp; patentprecheck.com</p>
+  <p class="ppc-footer-copy">&copy; 2026 Patent PreCheck&trade;. All rights reserved.</p>
 </footer>`;
 
   // Inject as soon as DOM is ready

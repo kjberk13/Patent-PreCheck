@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>Patent PreCheck — Know your patent position before you file</title>
+  <title>Patent PreCheck — Is your idea patentable? Is it ready to file?</title>
   <meta name="description" content="Upload your code or AI conversation and get a Patent PreCheck Score in seconds. Interactive review, Inventor's Notebook, assisted filing, attorney network, and prior art monitoring — everything you need to protect what you build."/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap"/>
@@ -36,7 +36,71 @@
     a.btn-n:hover{background:#0C447C}
     a.btn-o{display:inline-block;border:1.5px solid var(--navy);color:var(--navy);padding:11px 24px;border-radius:9px;font-size:14px;font-weight:500;text-decoration:none;transition:all .15s}
     a.btn-o:hover{background:var(--navy);color:#fff}
+    /* Logo draw-on animation */
+    .ppc-logo-node{opacity:0;animation:ppc-node-in .35s ease-out forwards;transform-box:fill-box;transform-origin:center}
+    .ppc-logo-node-1{animation-delay:.15s}
+    .ppc-logo-node-2{animation-delay:.30s}
+    .ppc-logo-node-3{animation-delay:.45s}
+    .ppc-logo-check{stroke-dasharray:30;stroke-dashoffset:30;animation:ppc-draw-check .45s cubic-bezier(.55,.15,.45,1) forwards}
+    .ppc-logo-check-1{animation-delay:.65s}
+    .ppc-logo-check-2{animation-delay:1.05s}
+    @keyframes ppc-node-in{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:scale(1)}}
+    @keyframes ppc-draw-check{to{stroke-dashoffset:0}}
+    @media (prefers-reduced-motion:reduce){
+      .ppc-logo-node{opacity:1;animation:none}
+      .ppc-logo-check{stroke-dashoffset:0;animation:none}
+    }
+    /* ============ MOBILE RESPONSIVE ============ */
+    @media (max-width: 760px) {
+      .container{padding:0 20px}
+      /* Hero */
+      h1{font-size:clamp(32px,9vw,48px)!important}
+      /* Section padding */
+      section{padding:48px 0!important}
+      section[style*="padding:80px"]{padding:48px 20px!important}
+      section[style*="padding:90px"]{padding:56px 20px!important}
+      /* Any 2/3/4-column inline grid collapses */
+      div[style*="grid-template-columns:repeat(4"]{grid-template-columns:1fr 1fr!important;gap:14px!important}
+      div[style*="grid-template-columns:repeat(3"]{grid-template-columns:1fr!important;gap:14px!important}
+      div[style*="grid-template-columns:1fr 1fr 1fr"]{grid-template-columns:1fr!important;gap:16px!important}
+      div[style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr!important;gap:14px!important}
+      div[style*="grid-template-columns:auto 1fr"]{grid-template-columns:1fr!important}
+      /* Navy hero score tiles */
+      div[style*="grid-template-columns:auto 1fr"][style*="gap:28px"]{grid-template-columns:1fr!important;text-align:center}
+      /* Pricing card hierarchy — stack everything */
+      section#pricing div[style*="grid-template-columns:1fr 1fr 1fr"]{grid-template-columns:1fr!important}
+      /* Reduce hero padding */
+      section:first-of-type{padding:60px 16px 48px!important}
+      /* Hero score tile — pad down */
+      div[style*="border-radius:20px"][style*="padding:28px 28px 24px"]{padding:20px 18px!important}
+      /* Nav hide desktop */
+      nav .nav-links, nav a.nav-cta{display:none!important}
+      nav{padding:0 16px!important}
+    }
+    @media (max-width: 480px) {
+      h1{font-size:clamp(30px,10vw,40px)!important}
+      h2.section-title{font-size:24px!important}
+      .container{padding:0 16px}
+      section[style*="padding:80px"]{padding:40px 16px!important}
+      section[style*="padding:90px"]{padding:44px 16px!important}
+      /* 2-column grids (like benefits) — stack on narrow phones */
+      div[style*="grid-template-columns:repeat(4"]{grid-template-columns:1fr!important}
+      div[style*="grid-template-columns:1fr 1fr"]:not([style*="1fr 1fr 1fr"]){grid-template-columns:1fr!important}
+    }
+    /* Data-moat section — stats band keeps 2x2 on all phone widths, not 1-col */
+    .dm-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:22px}
+    .dm-stat{display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+    .dm-stat-icon{width:40px;height:40px;border-radius:10px;background:var(--navy);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .dm-stat-title{font-size:14px;font-weight:600;color:var(--navy);line-height:1.35}
+    .dm-stat-caption{font-size:13px;color:#4A5568;line-height:1.6;margin:0}
+    @media (max-width:760px){
+      .dm-stats{grid-template-columns:1fr 1fr!important;gap:18px!important}
+    }
+    @media (max-width:480px){
+      .dm-stats{grid-template-columns:1fr 1fr!important;gap:16px!important}
+    }
   </style>
+  <link rel="stylesheet" href="mobile.css">
   <script src="nav.js" defer></script>
 </head>
 <body>
@@ -52,11 +116,11 @@
       <line x1="16" y1="15" x2="16" y2="27" stroke="rgba(255,255,255,0.62)" stroke-width="1.1"/>
       <line x1="12" y1="21" x2="22" y2="15" stroke="rgba(255,255,255,0.48)" stroke-width="1.1"/>
       <line x1="16" y1="15" x2="12" y2="21" stroke="rgba(29,158,117,0.5)" stroke-width="1.1"/>
-      <line x1="12" y1="21" x2="16" y2="27" stroke="#1D9E75" stroke-width="2.6" stroke-linecap="round"/>
-      <line x1="16" y1="27" x2="28" y2="16" stroke="#1D9E75" stroke-width="2.6" stroke-linecap="round"/>
-      <circle cx="12" cy="21" r="2.7" fill="#1D9E75"/>
-      <circle cx="16" cy="27" r="3.4" fill="#1D9E75"/>
-      <circle cx="28" cy="16" r="2.7" fill="#1D9E75"/>
+      <line class="ppc-logo-check ppc-logo-check-1" x1="12" y1="21" x2="16" y2="27" stroke="#1D9E75" stroke-width="2.6" stroke-linecap="round"/>
+      <line class="ppc-logo-check ppc-logo-check-2" x1="16" y1="27" x2="28" y2="16" stroke="#1D9E75" stroke-width="2.6" stroke-linecap="round"/>
+      <circle class="ppc-logo-node ppc-logo-node-1" cx="12" cy="21" r="2.7" fill="#1D9E75"/>
+      <circle class="ppc-logo-node ppc-logo-node-2" cx="16" cy="27" r="3.4" fill="#1D9E75"/>
+      <circle class="ppc-logo-node ppc-logo-node-3" cx="28" cy="16" r="2.7" fill="#1D9E75"/>
       <text x="56" y="27" font-family="'Playfair Display',Georgia,serif" font-size="19" font-weight="700" fill="#0C2340">Patent PreCheck</text>
     </svg>
   </a>
@@ -72,42 +136,287 @@
 <!-- HERO -->
 <section style="background:var(--navy);padding:88px 40px 72px;text-align:center">
   <div style="display:inline-block;background:rgba(29,158,117,.15);border:1px solid rgba(29,158,117,.3);border-radius:20px;padding:5px 16px;font-size:11px;font-weight:600;color:#4DD9A8;letter-spacing:.08em;text-transform:uppercase;margin-bottom:22px">Free to start &nbsp;&middot;&nbsp; No account required</div>
-  <h1 style="font-family:var(--serif);font-size:clamp(36px,6vw,72px);color:#fff;margin-bottom:20px;line-height:1.12;max-width:900px;margin-left:auto;margin-right:auto">Is your idea protected?<br>Can it be <em style="color:#4DD9A8;font-style:normal">patented?</em></h1>
-  <p style="font-size:18px;color:rgba(255,255,255,.72);max-width:580px;margin:0 auto 36px;line-height:1.75">Upload any code, conversation, or document — including anything created with an AI tool. Get your Patent PreCheck Score in seconds, in plain English.</p>
+  <h1 style="font-family:var(--serif);font-size:clamp(36px,6vw,72px);color:#fff;margin-bottom:20px;line-height:1.12;max-width:900px;margin-left:auto;margin-right:auto">Is your idea <em style="color:#4DD9A8;font-style:normal">patentable?</em><br>Is it ready to <em style="color:#85B7EB;font-style:normal">file?</em></h1>
+  <p style="font-size:18px;color:rgba(255,255,255,.72);max-width:620px;margin:0 auto 36px;line-height:1.75">Two scores in 60 seconds. Know exactly where you stand and what to strengthen &mdash; without an attorney.</p>
   <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:20px">
-    <a href="analyze.html" class="btn-g" style="font-size:16px;padding:14px 36px">Check my work — free &rarr;</a>
+    <a href="analyze.html" class="btn-g" style="font-size:16px;padding:14px 36px">Get your free Score &rarr;</a>
     <a href="platform.html" class="btn-o" style="border-color:rgba(255,255,255,.4);color:rgba(255,255,255,.8);font-size:15px">See the full platform</a>
   </div>
-  <p style="font-size:13px;color:rgba(255,255,255,.4)">No account required &nbsp;&middot;&nbsp; Upload code, docs, or notes &nbsp;&middot;&nbsp; Works with any AI tool</p>
+  <p style="font-size:13px;color:rgba(255,255,255,.4)">No account required &nbsp;&middot;&nbsp; Works with any AI tool &nbsp;&middot;&nbsp; Analyzed against daily-updated prior art</p>
 </section>
 
-<!-- SCORE DISPLAY -->
-<section style="background:#F0F4FF;padding:64px 40px">
-  <div class="container">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center">
-      <div>
-        <div class="eyebrow">The Patent PreCheck Score</div>
-        <h2 class="section-title">Know exactly where you stand</h2>
-        <p style="font-size:16px;color:#4A5568;margin-bottom:20px;line-height:1.7">Our score estimates the likelihood that your idea, code, or invention qualifies for patent protection — based on current US patent law, updated daily. One number. Plain English. Actionable.</p>
-        <p style="font-size:16px;color:#4A5568;line-height:1.7">The score is always free. No account. No commitment. Start there.</p>
-        <div style="margin-top:28px"><a href="analyze.html" class="btn-g">Get your free score &rarr;</a></div>
-      </div>
-      <div style="background:var(--navy);border-radius:18px;padding:32px">
-        <div style="display:flex;align-items:center;gap:18px;margin-bottom:22px;padding-bottom:20px;border-bottom:1px solid rgba(255,255,255,.1)">
-          <div style="width:72px;height:72px;border-radius:50%;border:4px solid #4DD9A8;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:28px;font-weight:700;color:#4DD9A8;flex-shrink:0">76</div>
-          <div>
-            <div style="font-size:16px;font-weight:500;color:#fff;font-family:var(--serif)">Patent PreCheck Score</div>
-            <div style="font-size:13px;color:rgba(255,255,255,.55);margin-top:3px">SmartQueue v2 &nbsp;&middot;&nbsp; Strong position</div>
+<!-- DATA MOAT — TRAINING CORPUS & DIFFERENTIATION -->
+<section style="background:#fff;padding:80px 40px">
+  <div class="container" style="max-width:920px">
+
+    <div style="text-align:center;margin:0 auto 32px;max-width:740px">
+      <div class="eyebrow">The Patent PreCheck advantage</div>
+      <h2 class="section-title" style="margin-bottom:16px">Trained on thousands of real patent filings. Updated daily.</h2>
+    </div>
+
+    <div style="font-size:16px;color:#4A5568;line-height:1.75;max-width:720px;margin:0 auto">
+      <p style="margin-bottom:18px">Patent PreCheck&trade; analyzes the full landscape &mdash; approved patents, rejected applications, and the reasoning behind both &mdash; to give you specific, data-backed guidance on how to strengthen your filing.</p>
+      <p style="margin-bottom:0">You&rsquo;ll know which areas of your invention need stronger differentiation, which language patterns cause pushback in your space, and where to focus before you pay a single dollar in filing fees.</p>
+    </div>
+
+    <!-- Stats band -->
+    <div style="background:#F4F7FF;border:1px solid #E2E8F4;border-radius:16px;padding:28px 28px;margin:40px 0">
+      <div class="dm-stats">
+
+        <div class="dm-stat">
+          <div class="dm-stat-icon" aria-hidden="true">
+            <!-- database cylinder -->
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <ellipse cx="10" cy="4.5" rx="6.5" ry="2.2" stroke="#4DD9A8" stroke-width="1.6"/>
+              <path d="M3.5 4.5V10C3.5 11.2 6.4 12.2 10 12.2C13.6 12.2 16.5 11.2 16.5 10V4.5" stroke="#4DD9A8" stroke-width="1.6" stroke-linecap="round"/>
+              <path d="M3.5 10V15.5C3.5 16.7 6.4 17.7 10 17.7C13.6 17.7 16.5 16.7 16.5 15.5V10" stroke="#4DD9A8" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
           </div>
+          <div class="dm-stat-title">Comprehensive</div>
+          <p class="dm-stat-caption">Trained on the full landscape of US patent filings in software and technology areas.</p>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);border-radius:8px;overflow:hidden">
-          <div style="padding:10px 6px;text-align:center;background:#FCEBEB"><div style="font-size:13px;font-weight:600;color:#E24B4A">0–39</div><div style="font-size:9px;color:#E24B4A;margin-top:2px">Not ready</div></div>
-          <div style="padding:10px 6px;text-align:center;background:#FAEEDA"><div style="font-size:13px;font-weight:600;color:#B7791F">40–59</div><div style="font-size:9px;color:#B7791F;margin-top:2px">Building</div></div>
-          <div style="padding:10px 6px;text-align:center;background:#E6F1FB;border-bottom:2px solid #4DD9A8"><div style="font-size:13px;font-weight:600;color:#4DD9A8">60–79</div><div style="font-size:9px;color:#4DD9A8;margin-top:2px">Strong &#9664;</div></div>
-          <div style="padding:10px 6px;text-align:center;background:#EAF3DE"><div style="font-size:13px;font-weight:600;color:#1D9E75">80–100</div><div style="font-size:9px;color:#1D9E75;margin-top:2px">File-ready</div></div>
+
+        <div class="dm-stat">
+          <div class="dm-stat-icon" aria-hidden="true">
+            <!-- refresh / sync -->
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 10C3 6.1 6.1 3 10 3C12.4 3 14.5 4.2 15.8 6.1" stroke="#4DD9A8" stroke-width="1.6" stroke-linecap="round"/>
+              <path d="M16 3V6.5H12.5" stroke="#4DD9A8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M17 10C17 13.9 13.9 17 10 17C7.6 17 5.5 15.8 4.2 13.9" stroke="#4DD9A8" stroke-width="1.6" stroke-linecap="round"/>
+              <path d="M4 17V13.5H7.5" stroke="#4DD9A8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="dm-stat-title">Always current</div>
+          <p class="dm-stat-caption">Daily updates from authoritative sources as new filings and decisions are published.</p>
         </div>
+
+        <div class="dm-stat">
+          <div class="dm-stat-icon" aria-hidden="true">
+            <!-- shield check -->
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M10 2.5L3.5 5V10C3.5 13.6 6.3 16.7 10 17.5C13.7 16.7 16.5 13.6 16.5 10V5L10 2.5Z" stroke="#4DD9A8" stroke-width="1.6" stroke-linejoin="round"/>
+              <path d="M7 10L9 12L13 8" stroke="#4DD9A8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="dm-stat-title">Authoritative</div>
+          <p class="dm-stat-caption">Data sourced directly from USPTO, academic research, and open-source technical literature.</p>
+        </div>
+
+        <div class="dm-stat">
+          <div class="dm-stat-icon" aria-hidden="true">
+            <!-- zap / lightning -->
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M11 2L4 11H9.5L9 18L16 9H10.5L11 2Z" stroke="#4DD9A8" stroke-width="1.6" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="dm-stat-title">Fast</div>
+          <p class="dm-stat-caption">Complete analysis in under 60 seconds.</p>
+        </div>
+
       </div>
     </div>
+
+    <p style="font-style:italic;font-size:14px;color:#718096;line-height:1.75;max-width:640px;margin:0 auto 28px;text-align:center">We&rsquo;re not attorneys, and we don&rsquo;t replace one. But we&rsquo;ll save you significant time and money before you get to that stage &mdash; so when you do meet with counsel, you arrive prepared.</p>
+
+    <div style="text-align:center">
+      <a href="analyze.html" class="btn-g" style="font-size:16px;padding:14px 36px">Run a free Patent PreCheck &rarr;</a>
+      <p style="font-size:13px;color:#718096;margin-top:14px">See your free patentability score in 60 seconds.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- SCORE DISPLAY — TWO SCORES + FOUR PILLARS -->
+<section style="background:#F0F4FF;padding:72px 40px">
+  <div class="container">
+    <div style="text-align:center;margin-bottom:36px;max-width:640px;margin-left:auto;margin-right:auto">
+      <div class="eyebrow">The Patent PreCheck Score</div>
+      <h2 class="section-title" style="margin-bottom:14px">Two scores. Both free. Both honest.</h2>
+      <p style="font-size:16px;color:#4A5568;line-height:1.7">The <strong style="font-weight:600;color:#0C2340">Patentability Score</strong> tells you if it can be patented. The <strong style="font-weight:600;color:#0C2340">Filing Readiness Score</strong> tells you if your documentation is strong enough to file. Analyzed against current US patent law, updated daily.</p>
+    </div>
+
+    <div style="background:var(--navy);border-radius:20px;padding:28px 28px 24px;max-width:820px;margin:0 auto">
+
+      <!-- Two headline scores side by side -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding-bottom:22px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:20px">
+
+        <div style="background:rgba(133,183,235,.06);border:1px solid rgba(133,183,235,.25);border-radius:12px;padding:16px">
+          <div style="display:flex;align-items:center;gap:14px">
+            <div style="width:64px;height:64px;border-radius:50%;border:3px solid #85B7EB;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:26px;font-weight:700;color:#85B7EB;flex-shrink:0">72</div>
+            <div style="min-width:0">
+              <div style="font-size:10px;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px">Patentability</div>
+              <div style="font-family:var(--serif);font-size:17px;color:#fff;font-weight:700;line-height:1.15">Close to ready</div>
+              <div style="font-size:12px;color:rgba(255,255,255,.5);margin-top:3px;line-height:1.3">Is it new, inventive, useful?</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:rgba(133,183,235,.06);border:1px solid rgba(133,183,235,.25);border-radius:12px;padding:16px">
+          <div style="display:flex;align-items:center;gap:14px">
+            <div style="width:64px;height:64px;border-radius:50%;border:3px solid #85B7EB;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:26px;font-weight:700;color:#85B7EB;flex-shrink:0">62</div>
+            <div style="min-width:0">
+              <div style="font-size:10px;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px">Filing readiness</div>
+              <div style="font-family:var(--serif);font-size:17px;color:#fff;font-weight:700;line-height:1.15">Close to ready</div>
+              <div style="font-size:12px;color:rgba(255,255,255,.5);margin-top:3px;line-height:1.3">Is your documentation filing-ready?</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Four patentability pillars -->
+      <div style="font-size:10px;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px">Patentability pillars</div>
+
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+
+        <div style="background:rgba(133,183,235,.05);border:1px solid rgba(133,183,235,.18);border-radius:10px;padding:12px 11px">
+          <div style="font-size:11px;color:rgba(255,255,255,.78);margin-bottom:10px;line-height:1.35;min-height:30px">Is it more than an abstract idea?</div>
+          <div style="display:flex;align-items:baseline;gap:6px">
+            <div style="font-family:var(--serif);font-size:24px;color:#85B7EB;font-weight:700;line-height:1">74</div>
+            <div style="font-size:10px;color:rgba(255,255,255,.38)">§101</div>
+          </div>
+          <div style="height:3px;background:rgba(255,255,255,.08);border-radius:2px;margin-top:9px;overflow:hidden"><div style="width:74%;height:100%;background:#85B7EB"></div></div>
+        </div>
+
+        <div style="background:rgba(77,217,168,.06);border:1px solid rgba(77,217,168,.2);border-radius:10px;padding:12px 11px">
+          <div style="font-size:11px;color:rgba(255,255,255,.78);margin-bottom:10px;line-height:1.35;min-height:30px">Is it new?</div>
+          <div style="display:flex;align-items:baseline;gap:6px">
+            <div style="font-family:var(--serif);font-size:24px;color:#4DD9A8;font-weight:700;line-height:1">81</div>
+            <div style="font-size:10px;color:rgba(255,255,255,.38)">§102</div>
+          </div>
+          <div style="height:3px;background:rgba(255,255,255,.08);border-radius:2px;margin-top:9px;overflow:hidden"><div style="width:81%;height:100%;background:#4DD9A8"></div></div>
+        </div>
+
+        <div style="background:rgba(239,159,39,.08);border:1px solid rgba(239,159,39,.25);border-radius:10px;padding:12px 11px">
+          <div style="font-size:11px;color:rgba(255,255,255,.78);margin-bottom:10px;line-height:1.35;min-height:30px">Is it inventive?</div>
+          <div style="display:flex;align-items:baseline;gap:6px">
+            <div style="font-family:var(--serif);font-size:24px;color:#EF9F27;font-weight:700;line-height:1">58</div>
+            <div style="font-size:10px;color:rgba(255,255,255,.38)">§103</div>
+          </div>
+          <div style="height:3px;background:rgba(255,255,255,.08);border-radius:2px;margin-top:9px;overflow:hidden"><div style="width:58%;height:100%;background:#EF9F27"></div></div>
+        </div>
+
+        <div style="background:rgba(77,217,168,.06);border:1px solid rgba(77,217,168,.2);border-radius:10px;padding:12px 11px">
+          <div style="font-size:11px;color:rgba(255,255,255,.78);margin-bottom:10px;line-height:1.35;min-height:30px">Does it work and matter?</div>
+          <div style="display:flex;align-items:baseline;gap:6px">
+            <div style="font-family:var(--serif);font-size:24px;color:#4DD9A8;font-weight:700;line-height:1">85</div>
+            <div style="font-size:10px;color:rgba(255,255,255,.38)">§101</div>
+          </div>
+          <div style="height:3px;background:rgba(255,255,255,.08);border-radius:2px;margin-top:9px;overflow:hidden"><div style="width:85%;height:100%;background:#4DD9A8"></div></div>
+        </div>
+
+      </div>
+
+      <!-- Legend: the traffic light progression -->
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;padding:10px 14px;background:rgba(255,255,255,.03);border-radius:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:50%;background:#E24B4A;display:inline-block"></span><span style="font-size:11px;color:rgba(255,255,255,.6)">Not ready</span></div>
+        <div style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:50%;background:#EF9F27;display:inline-block"></span><span style="font-size:11px;color:rgba(255,255,255,.6)">Building</span></div>
+        <div style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:50%;background:#85B7EB;display:inline-block"></span><span style="font-size:11px;color:rgba(255,255,255,.6)">Close to ready</span></div>
+        <div style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:50%;background:#4DD9A8;display:inline-block"></span><span style="font-size:11px;color:rgba(255,255,255,.6)">File ready</span></div>
+      </div>
+
+      <!-- Coaching callout -->
+      <div style="background:rgba(239,159,39,.08);border-left:3px solid #EF9F27;border-radius:0 6px 6px 0;padding:10px 14px;margin-bottom:16px">
+        <div style="font-size:12px;color:rgba(255,255,255,.85);line-height:1.5"><strong style="color:#EF9F27;font-weight:600">Non-obviousness (§103) needs strengthening.</strong> The full Report walks you through how to build out this pillar — with coaching guidance and prior art context specific to your technical area.</div>
+      </div>
+
+      <!-- Metadata footer -->
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:rgba(255,255,255,.48)">
+        <span>ACME Widget</span>
+        <span>·</span>
+        <span>Analyzed against daily-updated prior art</span>
+        <span>·</span>
+        <span>Machine Learning</span>
+      </div>
+
+    </div>
+
+    <div style="text-align:center;margin-top:32px">
+      <a href="analyze.html" class="btn-g" style="font-size:15px;padding:13px 32px">Get your free Score &rarr;</a>
+      <p style="font-size:13px;color:#718096;margin-top:14px">Upgrade to the full <strong style="font-weight:600;color:#0C2340">Report</strong> to strengthen both scores, with coaching guidance on every pillar.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- BENEFITS — WHY PATENT PRECHECK -->
+<section style="background:#fff;padding:88px 40px">
+  <div class="container">
+
+    <div style="text-align:center;margin:0 auto 48px;max-width:640px">
+      <div class="eyebrow">Why Patent PreCheck</div>
+      <h2 class="section-title" style="margin-bottom:14px">Built for anyone thinking about filing a patent</h2>
+      <p style="font-size:16px;color:#4A5568;line-height:1.7;margin:0">Whether you're a solo developer, a founder, or a small team — you can evaluate your idea without hiring an attorney first.</p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:880px;margin:0 auto">
+
+      <div style="background:#F4F7FF;border-radius:16px;padding:32px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
+          <div style="width:40px;height:40px;border-radius:10px;background:var(--navy);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <svg width="19" height="19" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="9" cy="9" r="7" stroke="#4DD9A8" stroke-width="1.8"/>
+              <circle cx="9" cy="9" r="2" fill="#4DD9A8"/>
+            </svg>
+          </div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#1D9E75">Know where you stand</div>
+        </div>
+        <h3 style="font-family:var(--serif);font-size:24px;color:var(--navy);margin:0 0 12px;font-weight:700;line-height:1.25">See exactly how patentable your work is</h3>
+        <p style="font-size:15px;color:#4A5568;line-height:1.7;margin:0 0 18px">Two clear scores in seconds. Patentability tells you if the idea can be patented. Filing Readiness tells you if your documentation is strong enough to file. Each backed by four plain-English pillars.</p>
+        <div style="padding-top:16px;border-top:1px solid rgba(12,35,64,0.08);font-size:13px;color:var(--navy);font-weight:600">Patentability Score + Filing Readiness Score</div>
+      </div>
+
+      <div style="background:#F4F7FF;border-radius:16px;padding:32px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
+          <div style="width:40px;height:40px;border-radius:10px;background:var(--navy);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <svg width="19" height="19" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 14L8 9L11 12L15 5" stroke="#4DD9A8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="15" cy="5" r="1.5" fill="#4DD9A8"/>
+            </svg>
+          </div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#1D9E75">Get stronger before you file</div>
+        </div>
+        <h3 style="font-family:var(--serif);font-size:24px;color:var(--navy);margin:0 0 12px;font-weight:700;line-height:1.25">Improve your chances of approval</h3>
+        <p style="font-size:15px;color:#4A5568;line-height:1.7;margin:0 0 18px">The full Report shows specifically what to strengthen, pillar by pillar — with the language patterns that have historically succeeded in your technical area. Weak ideas get cleaner; strong ideas get stronger.</p>
+        <div style="padding-top:16px;border-top:1px solid rgba(12,35,64,0.08);font-size:13px;color:var(--navy);font-weight:600">Coaching on every pillar, backed by real outcomes</div>
+      </div>
+
+      <div style="background:#F4F7FF;border-radius:16px;padding:32px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
+          <div style="width:40px;height:40px;border-radius:10px;background:var(--navy);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <svg width="19" height="19" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="9" cy="9" r="7" stroke="#4DD9A8" stroke-width="1.8"/>
+              <path d="M9 5V9L11.5 10.5" stroke="#4DD9A8" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#1D9E75">Save weeks of time</div>
+        </div>
+        <h3 style="font-family:var(--serif);font-size:24px;color:var(--navy);margin:0 0 12px;font-weight:700;line-height:1.25">Seconds, not weeks</h3>
+        <p style="font-size:15px;color:#4A5568;line-height:1.7;margin:0 0 18px">What normally takes weeks of back-and-forth with an attorney takes about 60 seconds. Upload your work, get your scores, see exactly what matters &mdash; then decide your next step with real information.</p>
+        <div style="padding-top:16px;border-top:1px solid rgba(12,35,64,0.08);font-size:13px;color:var(--navy);font-weight:600">60-second analysis vs 2&ndash;4 weeks with counsel</div>
+      </div>
+
+      <div style="background:#F4F7FF;border-radius:16px;padding:32px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
+          <div style="width:40px;height:40px;border-radius:10px;background:var(--navy);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <svg width="19" height="19" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 3V15M12 6H7.5C6.67 6 6 6.67 6 7.5C6 8.33 6.67 9 7.5 9H10.5C11.33 9 12 9.67 12 10.5C12 11.33 11.33 12 10.5 12H6" stroke="#4DD9A8" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#1D9E75">Save thousands of dollars</div>
+        </div>
+        <h3 style="font-family:var(--serif);font-size:24px;color:var(--navy);margin:0 0 12px;font-weight:700;line-height:1.25">A report, not a retainer</h3>
+        <p style="font-size:15px;color:#4A5568;line-height:1.7;margin:0 0 18px">Free to check. $69.99 for the full Report with coaching. A patent attorney's initial opinion alone runs $1,500&ndash;$5,000. Use Patent PreCheck first so that when you do bring in an attorney, you're arriving ready.</p>
+        <div style="padding-top:16px;border-top:1px solid rgba(12,35,64,0.08);font-size:13px;color:var(--navy);font-weight:600">$0 to $69.99 vs $1,500+ for an attorney opinion</div>
+      </div>
+
+    </div>
+
+    <div style="text-align:center;margin-top:44px">
+      <p style="font-size:13px;color:#718096;margin-bottom:16px">Everything above is free. The $69.99 Report only adds the coaching to strengthen your work.</p>
+      <a href="analyze.html" class="btn-g" style="font-size:15px;padding:13px 30px">Get your free Score &rarr;</a>
+    </div>
+
   </div>
 </section>
 
@@ -227,8 +536,8 @@
       </div>
       <div style="padding:28px 22px;border-right:1px solid #E2E8F4">
         <div style="width:36px;height:36px;background:var(--navy);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:15px;margin-bottom:16px">2</div>
-        <div style="font-size:14px;font-weight:600;color:var(--navy);margin-bottom:8px">Get your score</div>
-        <div style="font-size:13px;color:#4A5568;line-height:1.6">Your Patent PreCheck Score in under 60 seconds. Free, no card, plain English. Unlock the full review for $69.99.</div>
+        <div style="font-size:14px;font-weight:600;color:var(--navy);margin-bottom:8px">Get your two scores</div>
+        <div style="font-size:13px;color:#4A5568;line-height:1.6">Patentability Score and Filing Readiness Score in under 60 seconds. Free, no card, plain English. Upgrade to the full Report for $69.99.</div>
       </div>
       <div style="padding:28px 22px;border-right:1px solid #E2E8F4">
         <div style="width:36px;height:36px;background:#0C447C;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:15px;margin-bottom:16px">3</div>
@@ -258,21 +567,20 @@
       <!-- Free -->
       <div style="background:#F4F7FF;border:1px solid #E2E8F4;border-radius:16px;overflow:hidden">
         <div style="padding:28px 28px 20px">
-          <div style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#718096;margin-bottom:12px">Free</div>
+          <div style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#718096;margin-bottom:12px">Free Score</div>
           <div style="font-family:var(--serif);font-size:40px;color:var(--navy);margin-bottom:4px">$0</div>
           <div style="font-size:13px;color:#718096;margin-bottom:20px">No account required</div>
-          <a href="analyze.html" style="display:block;text-align:center;background:#E2E8F4;color:var(--navy);padding:11px;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;transition:background .15s">Get your free score</a>
+          <a href="analyze.html" style="display:block;text-align:center;background:#E2E8F4;color:var(--navy);padding:11px;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;transition:background .15s">Get your free Score</a>
         </div>
         <div style="padding:0 28px 28px;border-top:1px solid #E2E8F4;padding-top:20px">
           <div style="font-size:12px;font-weight:600;color:#718096;margin-bottom:12px;text-transform:uppercase;letter-spacing:.06em">Includes</div>
           <div style="display:flex;flex-direction:column;gap:9px">
-            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#2D3748"><span class="check">✓</span>Patent PreCheck Score (0–100)</div>
-            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#2D3748"><span class="check">✓</span>Plain English score summary</div>
-            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#2D3748"><span class="check">✓</span>Code analyzed then returned — session based</div>
-            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#A0AEC0"><span style="color:#CBD5E0;flex-shrink:0">—</span>Full review &amp; recommendations</div>
-            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#A0AEC0"><span style="color:#CBD5E0;flex-shrink:0">—</span>Inventor's Notebook</div>
-            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#A0AEC0"><span style="color:#CBD5E0;flex-shrink:0">—</span>Summary report PDF</div>
-            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#A0AEC0"><span style="color:#CBD5E0;flex-shrink:0">—</span>Legal monitoring</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#2D3748"><span class="check">&#10003;</span>Patentability Score (0&ndash;100)</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#2D3748"><span class="check">&#10003;</span>Filing Readiness Score (0&ndash;100)</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#2D3748"><span class="check">&#10003;</span>Four-pillar breakdown with findings</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#2D3748"><span class="check">&#10003;</span>Top 3 opportunities to strengthen</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#2D3748"><span class="check">&#10003;</span>Prior art document count</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#2D3748"><span class="check">&#10003;</span>Your code deleted on result &mdash; never stored</div>
           </div>
         </div>
       </div>
@@ -281,22 +589,21 @@
       <div style="background:var(--navy);border-radius:16px;overflow:hidden;position:relative;border:2px solid #1D9E75">
         <div style="background:#1D9E75;text-align:center;padding:6px;font-size:11px;font-weight:600;color:#fff;letter-spacing:.08em;text-transform:uppercase">Most popular</div>
         <div style="padding:28px 28px 20px">
-          <div style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-bottom:12px">Full Review</div>
+          <div style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-bottom:12px">Full Report</div>
           <div style="font-family:var(--serif);font-size:40px;color:#fff;margin-bottom:4px">$69.99</div>
           <div style="font-size:13px;color:rgba(255,255,255,.5);margin-bottom:20px">One-time &nbsp;&middot;&nbsp; not a subscription</div>
-          <a href="analyze.html" style="display:block;text-align:center;background:#1D9E75;color:#fff;padding:11px;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;transition:background .15s">Start your review</a>
+          <a href="analyze.html" style="display:block;text-align:center;background:#1D9E75;color:#fff;padding:11px;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;transition:background .15s">Get your full Report</a>
         </div>
         <div style="padding:0 28px 28px;border-top:1px solid rgba(255,255,255,.1);padding-top:20px">
           <div style="font-size:12px;font-weight:600;color:rgba(255,255,255,.4);margin-bottom:12px;text-transform:uppercase;letter-spacing:.06em">Everything in Free, plus</div>
           <div style="display:flex;flex-direction:column;gap:9px">
-            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#fff"><span style="color:#1D9E75;flex-shrink:0;margin-top:2px">✓</span>Full section-by-section code review</div>
-            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#fff"><span style="color:#1D9E75;flex-shrink:0;margin-top:2px">✓</span>Interactive AI — specific edits, live score updates</div>
-            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#fff"><span style="color:#1D9E75;flex-shrink:0;margin-top:2px">✓</span>30-day review window — log in anytime</div>
-            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#fff"><span style="color:#1D9E75;flex-shrink:0;margin-top:2px">✓</span>Inventor's Notebook (timestamped decisions)</div>
-            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#fff"><span style="color:#1D9E75;flex-shrink:0;margin-top:2px">✓</span>Summary report PDF on completion</div>
-            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#fff"><span style="color:#1D9E75;flex-shrink:0;margin-top:2px">✓</span>30-day legal monitoring after completion</div>
-            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#fff"><span style="color:#1D9E75;flex-shrink:0;margin-top:2px">✓</span>Assisted filing access (provisional + copyright)</div>
-            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#fff"><span style="color:#1D9E75;flex-shrink:0;margin-top:2px">✓</span>Attorney network access with warm handoff</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#fff"><span style="color:#1D9E75;flex-shrink:0;margin-top:2px">&#10003;</span>Pillar-by-pillar coaching on how to strengthen</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#fff"><span style="color:#1D9E75;flex-shrink:0;margin-top:2px">&#10003;</span>Top prior art references with overlap analysis</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#fff"><span style="color:#1D9E75;flex-shrink:0;margin-top:2px">&#10003;</span>Dated PDF Report for your records</div>
+            <div style="display:flex;gap:10px;align-items:center;font-size:13px;color:rgba(255,255,255,.78)"><span style="color:#85B7EB;flex-shrink:0">&#10003;</span><span style="flex:1">Interactive live coding review</span><span style="background:rgba(239,159,39,.2);color:#EF9F27;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:600;letter-spacing:.05em;flex-shrink:0">COMING SOON</span></div>
+            <div style="display:flex;gap:10px;align-items:center;font-size:13px;color:rgba(255,255,255,.78)"><span style="color:#85B7EB;flex-shrink:0">&#10003;</span><span style="flex:1">Inventor&#39;s Notebook</span><span style="background:rgba(239,159,39,.2);color:#EF9F27;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:600;letter-spacing:.05em;flex-shrink:0">COMING SOON</span></div>
+            <div style="display:flex;gap:10px;align-items:center;font-size:13px;color:rgba(255,255,255,.78)"><span style="color:#85B7EB;flex-shrink:0">&#10003;</span><span style="flex:1">Assisted provisional filing</span><span style="background:rgba(239,159,39,.2);color:#EF9F27;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:600;letter-spacing:.05em;flex-shrink:0">COMING SOON</span></div>
+            <div style="display:flex;gap:10px;align-items:center;font-size:13px;color:rgba(255,255,255,.78)"><span style="color:#85B7EB;flex-shrink:0">&#10003;</span><span style="flex:1">Attorney network access</span><span style="background:rgba(239,159,39,.2);color:#EF9F27;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:600;letter-spacing:.05em;flex-shrink:0">COMING SOON</span></div>
           </div>
         </div>
       </div>
@@ -305,10 +612,9 @@
       <div style="display:flex;flex-direction:column;gap:16px">
         <div style="background:#F4F7FF;border:1px solid #E2E8F4;border-radius:16px;padding:24px">
           <div style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#718096;margin-bottom:10px">Re-review</div>
-          <div style="font-family:var(--serif);font-size:32px;color:var(--navy);margin-bottom:4px">$29.99</div>
-          <div style="font-size:13px;color:#718096;margin-bottom:16px">For existing account holders</div>
-          <div style="font-size:13px;color:#4A5568;line-height:1.6;margin-bottom:16px">When new case law may affect an older project, re-run the full analysis against current law. Includes before/after comparison and updated recommendations.</div>
-          <a href="analyze.html" style="display:block;text-align:center;background:#E2E8F4;color:var(--navy);padding:9px;border-radius:7px;font-weight:600;font-size:13px;text-decoration:none">Re-review a project</a>
+          <div style="font-family:var(--serif);font-size:22px;color:var(--navy);margin-bottom:8px">$29.99 &nbsp;<span style="background:rgba(239,159,39,.2);color:#B7791F;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:600;letter-spacing:.06em">COMING SOON</span></div>
+          <div style="font-size:13px;color:#4A5568;line-height:1.6;margin-bottom:16px">When new case law may affect an older project, re-run the full analysis against current law. Includes before/after comparison and updated recommendations. Available once user accounts launch.</div>
+          <a href="analyze.html" style="display:block;text-align:center;background:#E2E8F4;color:#718096;padding:9px;border-radius:7px;font-weight:600;font-size:13px;text-decoration:none;pointer-events:none;opacity:.7">Start with free Score</a>
         </div>
         <div style="background:#F4F7FF;border:1px solid #E2E8F4;border-radius:16px;padding:24px">
           <div style="font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#718096;margin-bottom:10px">Enterprise</div>
@@ -358,7 +664,7 @@
   <div style="font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#4DD9A8;margin-bottom:16px">Ready when you are</div>
   <h2 style="font-family:var(--serif);font-size:clamp(32px,5vw,52px);color:#fff;margin-bottom:18px;line-height:1.2">Start with your free score.<br>Everything else follows.</h2>
   <p style="font-size:17px;color:rgba(255,255,255,.7);max-width:480px;margin:0 auto 36px;line-height:1.7">No account. No card. Just upload your work and know where you stand in under 60 seconds.</p>
-  <a href="analyze.html" class="btn-g" style="font-size:16px;padding:15px 40px">Check my work — free &rarr;</a>
+  <a href="analyze.html" class="btn-g" style="font-size:16px;padding:15px 40px">Get your free Score &rarr;</a>
 </section>
 
 <footer>
@@ -369,9 +675,9 @@
       <line x1="16" y1="10" x2="21" y2="11" stroke="rgba(255,255,255,.62)" stroke-width="1"/>
       <line x1="8" y1="15" x2="16" y2="10" stroke="rgba(255,255,255,.45)" stroke-width="1"/>
       <line x1="11" y1="10" x2="8" y2="15" stroke="rgba(29,158,117,.5)" stroke-width="1"/>
-      <line x1="8" y1="15" x2="11" y2="20" stroke="#1D9E75" stroke-width="2" stroke-linecap="round"/>
-      <line x1="11" y1="20" x2="21" y2="11" stroke="#1D9E75" stroke-width="2" stroke-linecap="round"/>
-      <circle cx="8" cy="15" r="2" fill="#1D9E75"/><circle cx="11" cy="20" r="2.5" fill="#1D9E75"/><circle cx="21" cy="11" r="2" fill="#1D9E75"/>
+      <line class="ppc-logo-check ppc-logo-check-1" x1="8" y1="15" x2="11" y2="20" stroke="#1D9E75" stroke-width="2" stroke-linecap="round" style="stroke-dasharray:10"/>
+      <line class="ppc-logo-check ppc-logo-check-2" x1="11" y1="20" x2="21" y2="11" stroke="#1D9E75" stroke-width="2" stroke-linecap="round" style="stroke-dasharray:18"/>
+      <circle class="ppc-logo-node ppc-logo-node-1" cx="8" cy="15" r="2" fill="#1D9E75"/><circle class="ppc-logo-node ppc-logo-node-2" cx="11" cy="20" r="2.5" fill="#1D9E75"/><circle class="ppc-logo-node ppc-logo-node-3" cx="21" cy="11" r="2" fill="#1D9E75"/>
       <text x="42" y="19" font-family="'Playfair Display',Georgia,serif" font-size="14" font-weight="700" fill="white">Patent PreCheck</text>
     </svg>
   </div>
@@ -381,7 +687,10 @@
     <a href="legal-intelligence.html">Legal Intelligence</a>
     <a href="privacy.html">Privacy</a><a href="terms.html">Terms</a>
   </p>
-  <p>&copy; 2026 Patent PreCheck &nbsp;&middot;&nbsp; Not legal advice &nbsp;&middot;&nbsp; patentprecheck.com</p>
+  <p style="margin-bottom:12px;font-size:12px;color:rgba(255,255,255,.35)">
+    Attorneys: interested in joining our network? <a href="mailto:attorneys@patentprecheck.com?subject=Patent%20PreCheck%20Attorney%20Network%20Interest" style="color:rgba(77,217,168,.85);margin:0">Get in touch &rarr;</a>
+  </p>
+  <p>&copy; 2026 Patent PreCheck&trade;. All rights reserved.</p>
 </footer>
 
 </body>

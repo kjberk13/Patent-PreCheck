@@ -87,6 +87,18 @@
       div[style*="grid-template-columns:repeat(4"]{grid-template-columns:1fr!important}
       div[style*="grid-template-columns:1fr 1fr"]:not([style*="1fr 1fr 1fr"]){grid-template-columns:1fr!important}
     }
+    /* Data-moat section — stats band keeps 2x2 on all phone widths, not 1-col */
+    .dm-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:22px}
+    .dm-stat{display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+    .dm-stat-icon{width:40px;height:40px;border-radius:10px;background:var(--navy);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .dm-stat-title{font-size:14px;font-weight:600;color:var(--navy);line-height:1.35}
+    .dm-stat-caption{font-size:13px;color:#4A5568;line-height:1.6;margin:0}
+    @media (max-width:760px){
+      .dm-stats{grid-template-columns:1fr 1fr!important;gap:18px!important}
+    }
+    @media (max-width:480px){
+      .dm-stats{grid-template-columns:1fr 1fr!important;gap:16px!important}
+    }
   </style>
   <link rel="stylesheet" href="mobile.css">
   <script src="nav.js" defer></script>
@@ -131,6 +143,87 @@
     <a href="platform.html" class="btn-o" style="border-color:rgba(255,255,255,.4);color:rgba(255,255,255,.8);font-size:15px">See the full platform</a>
   </div>
   <p style="font-size:13px;color:rgba(255,255,255,.4)">No account required &nbsp;&middot;&nbsp; Works with any AI tool &nbsp;&middot;&nbsp; Analyzed against daily-updated prior art</p>
+</section>
+
+<!-- DATA MOAT — TRAINING CORPUS & DIFFERENTIATION -->
+<section style="background:#fff;padding:80px 40px">
+  <div class="container" style="max-width:920px">
+
+    <div style="text-align:center;margin:0 auto 32px;max-width:740px">
+      <div class="eyebrow">The Patent PreCheck advantage</div>
+      <h2 class="section-title" style="margin-bottom:16px">Trained on thousands of real patent filings. Updated daily.</h2>
+    </div>
+
+    <div style="font-size:16px;color:#4A5568;line-height:1.75;max-width:720px;margin:0 auto">
+      <p style="margin-bottom:18px">Patent PreCheck&trade; analyzes the full landscape &mdash; approved patents, rejected applications, and the reasoning behind both &mdash; to give you specific, data-backed guidance on how to strengthen your filing.</p>
+      <p style="margin-bottom:0">You&rsquo;ll know which areas of your invention need stronger differentiation, which language patterns cause pushback in your space, and where to focus before you pay a single dollar in filing fees.</p>
+    </div>
+
+    <!-- Stats band -->
+    <div style="background:#F4F7FF;border:1px solid #E2E8F4;border-radius:16px;padding:28px 28px;margin:40px 0">
+      <div class="dm-stats">
+
+        <div class="dm-stat">
+          <div class="dm-stat-icon" aria-hidden="true">
+            <!-- database cylinder -->
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <ellipse cx="10" cy="4.5" rx="6.5" ry="2.2" stroke="#4DD9A8" stroke-width="1.6"/>
+              <path d="M3.5 4.5V10C3.5 11.2 6.4 12.2 10 12.2C13.6 12.2 16.5 11.2 16.5 10V4.5" stroke="#4DD9A8" stroke-width="1.6" stroke-linecap="round"/>
+              <path d="M3.5 10V15.5C3.5 16.7 6.4 17.7 10 17.7C13.6 17.7 16.5 16.7 16.5 15.5V10" stroke="#4DD9A8" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="dm-stat-title">Comprehensive</div>
+          <p class="dm-stat-caption">Trained on the full landscape of US patent filings in software and technology areas.</p>
+        </div>
+
+        <div class="dm-stat">
+          <div class="dm-stat-icon" aria-hidden="true">
+            <!-- refresh / sync -->
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 10C3 6.1 6.1 3 10 3C12.4 3 14.5 4.2 15.8 6.1" stroke="#4DD9A8" stroke-width="1.6" stroke-linecap="round"/>
+              <path d="M16 3V6.5H12.5" stroke="#4DD9A8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M17 10C17 13.9 13.9 17 10 17C7.6 17 5.5 15.8 4.2 13.9" stroke="#4DD9A8" stroke-width="1.6" stroke-linecap="round"/>
+              <path d="M4 17V13.5H7.5" stroke="#4DD9A8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="dm-stat-title">Always current</div>
+          <p class="dm-stat-caption">Daily updates from authoritative sources as new filings and decisions are published.</p>
+        </div>
+
+        <div class="dm-stat">
+          <div class="dm-stat-icon" aria-hidden="true">
+            <!-- shield check -->
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M10 2.5L3.5 5V10C3.5 13.6 6.3 16.7 10 17.5C13.7 16.7 16.5 13.6 16.5 10V5L10 2.5Z" stroke="#4DD9A8" stroke-width="1.6" stroke-linejoin="round"/>
+              <path d="M7 10L9 12L13 8" stroke="#4DD9A8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="dm-stat-title">Authoritative</div>
+          <p class="dm-stat-caption">Data sourced directly from USPTO, academic research, and open-source technical literature.</p>
+        </div>
+
+        <div class="dm-stat">
+          <div class="dm-stat-icon" aria-hidden="true">
+            <!-- zap / lightning -->
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M11 2L4 11H9.5L9 18L16 9H10.5L11 2Z" stroke="#4DD9A8" stroke-width="1.6" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="dm-stat-title">Fast</div>
+          <p class="dm-stat-caption">Complete analysis in under 60 seconds.</p>
+        </div>
+
+      </div>
+    </div>
+
+    <p style="font-style:italic;font-size:14px;color:#718096;line-height:1.75;max-width:640px;margin:0 auto 28px;text-align:center">We&rsquo;re not attorneys, and we don&rsquo;t replace one. But we&rsquo;ll save you significant time and money before you get to that stage &mdash; so when you do meet with counsel, you arrive prepared.</p>
+
+    <div style="text-align:center">
+      <a href="analyze.html" class="btn-g" style="font-size:16px;padding:14px 36px">Run a free Patent PreCheck &rarr;</a>
+      <p style="font-size:13px;color:#718096;margin-top:14px">See your free patentability score in 60 seconds.</p>
+    </div>
+
+  </div>
 </section>
 
 <!-- SCORE DISPLAY — TWO SCORES + FOUR PILLARS -->
@@ -597,7 +690,7 @@
   <p style="margin-bottom:12px;font-size:12px;color:rgba(255,255,255,.35)">
     Attorneys: interested in joining our network? <a href="mailto:attorneys@patentprecheck.com?subject=Patent%20PreCheck%20Attorney%20Network%20Interest" style="color:rgba(77,217,168,.85);margin:0">Get in touch &rarr;</a>
   </p>
-  <p>&copy; 2026 Patent PreCheck &nbsp;&middot;&nbsp; Not legal advice &nbsp;&middot;&nbsp; patentprecheck.com</p>
+  <p>&copy; 2026 Patent PreCheck&trade;. All rights reserved.</p>
 </footer>
 
 </body>
