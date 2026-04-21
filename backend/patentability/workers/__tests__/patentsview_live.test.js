@@ -34,13 +34,20 @@ test(
   async () => {
     const worker = new PatentsViewWorker({
       apiKey: API_KEY,
-      pageSize: 5,
+      pageSize: 5, // narrow — stays under the 6 MB ODP cap trivially
       cpcGroups: ['G06F'],
       backfillFrom: isoDaysAgo(30),
       // Use a stub logger so the test output stays clean; swap to
       // console.log if debugging a failing live run.
       logger: () => {},
     });
+
+    // Sanity-check the request body shape before hitting the network.
+    // If fields[] drops out or pagination.limit goes wrong, we want to
+    // know here rather than tracing through a 413 / empty response.
+    const body = worker._buildQuery('backfill', 0);
+    assert.ok(Array.isArray(body.fields) && body.fields.length > 0, 'fields[] present');
+    assert.equal(body.pagination.limit, 5);
 
     // Exercise the page generator directly. We only need the first
     // page to prove the query shape returns data.
@@ -74,6 +81,30 @@ test(
 
     // Return the generator so subsequent pages don't linger open on
     // the event loop (it holds an HTTP connection reference).
+    await gen.return();
+  },
+);
+
+test(
+  'USPTO ODP live: default pageSize=25 stays under the 6 MB response cap',
+  { skip: !LIVE || !API_KEY ? 'set USPTO_LIVE_TEST=1 and USPTO_API_KEY to run' : false },
+  async () => {
+    // Regression guard: the backfill kept hitting HTTP 413 at the
+    // old pageSize=100 default. Verify the new default + fields[]
+    // combination actually fits.
+    const worker = new PatentsViewWorker({
+      apiKey: API_KEY,
+      // default pageSize (25)
+      cpcGroups: ['G06F', 'G06N', 'G06Q', 'H04L'],
+      backfillFrom: isoDaysAgo(7),
+      logger: () => {},
+    });
+    assert.equal(worker.pageSize, 25, 'default pageSize should be 25');
+
+    const gen = worker.pages({ mode: 'backfill', cursor: null });
+    const first = await gen.next();
+    assert.equal(first.done, false, 'first page should yield');
+    assert.ok(first.value.docs.length > 0, 'at least one doc returned');
     await gen.return();
   },
 );

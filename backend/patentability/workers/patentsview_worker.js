@@ -58,10 +58,44 @@ const {
 const SOURCE_ID = 'uspto-patentsview';
 
 const DEFAULT_ODP_ENDPOINT = 'https://api.uspto.gov/api/v1/patent/applications/search';
-const DEFAULT_PAGE_SIZE = 100;
+// ODP caps response payload at 6 MB. A broad Utility+CPC query with
+// default (all-field) responses blows past that at pageSize=100. 25
+// gives a ~4x safety margin in practice; USPTO_PAGE_SIZE lets us
+// retune at runtime without a redeploy.
+const DEFAULT_PAGE_SIZE = 25;
+// Upper bound on client-side 413 retries. Each retry halves pageSize.
+// 25 → 12 → 6 → 3 covers the realistic worst case; if 3 still 413s,
+// the query itself is the problem, not the page size.
+const MAX_PAYLOAD_RETRIES = 3;
 const DEFAULT_CPC_GROUPS = ['G06F', 'G06N', 'G06Q', 'H04L'];
 const DEFAULT_BACKFILL_FROM = '2015-01-01';
 const DEFAULT_RPS = 0.7;
+
+// Fields we explicitly request from ODP. The ODP search endpoint
+// returns the full PatentDataResponse when `fields` is omitted, which
+// blows past the 6 MB response cap on broad queries. Limiting to the
+// fields we actually persist also shaves ~80% off response bytes,
+// making 413s far less likely in the first place.
+//
+// ABSTRACT TEXT NOTE (verified against ODP Swagger): abstract is NOT
+// exposed on applicationMetaData in the search response. A grep of
+// the full Swagger YAML returns zero `abstract` hits. To get the
+// abstract paragraph you must call
+// `/api/v1/patent/applications/{applicationNumberText}/documents` and
+// download the PGPub/Grant XML. That's an extra round-trip per doc —
+// too expensive for bulk ingest, and the marginal retrieval quality
+// gain over title-only isn't worth the latency/rate-limit cost.
+// parseDocument keeps its abstract-cascade for resilience (in case
+// USPTO ever surfaces it), but the default shape is title-only.
+const DEFAULT_FIELDS = [
+  'applicationNumberText',
+  'applicationMetaData.filingDate',
+  'applicationMetaData.inventionTitle',
+  'applicationMetaData.applicationTypeLabelName',
+  'applicationMetaData.applicationStatusDescriptionText',
+  'applicationMetaData.cpcClassificationBag',
+  'applicationMetaData.applicantBag',
+];
 
 class PatentsViewWorker extends BaseWorker {
   constructor(opts = {}) {
@@ -75,10 +109,11 @@ class PatentsViewWorker extends BaseWorker {
       process.env.PATENTSVIEW_ENDPOINT ||
       DEFAULT_ODP_ENDPOINT;
     this.apiKey = opts.apiKey ?? process.env.USPTO_API_KEY ?? null;
-    this.pageSize = opts.pageSize || DEFAULT_PAGE_SIZE;
+    this.pageSize = opts.pageSize || parsePositiveInt(process.env.USPTO_PAGE_SIZE) || DEFAULT_PAGE_SIZE;
     this.cpcGroups = opts.cpcGroups || DEFAULT_CPC_GROUPS;
     this.backfillFrom = opts.backfillFrom || DEFAULT_BACKFILL_FROM;
     this.deltaLookbackDays = opts.deltaLookbackDays || 7;
+    this.fields = opts.fields || DEFAULT_FIELDS;
     // Optional override for the primary query string. If unset, the
     // worker builds one from applicationType + CPC groups.
     this.customQuery = opts.customQuery || null;
@@ -123,44 +158,78 @@ class PatentsViewWorker extends BaseWorker {
       }
 
       let res;
-      try {
-        res = await this.fetchPage(this.endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Api-Key': this.apiKey,
-          },
-          body: JSON.stringify(body),
-        });
-      } catch (err) {
-        // USPTO ODP returns HTTP 404 with a "No matching records" body
-        // when a valid query matches zero documents. That's a
-        // success-with-empty-result, not an API failure. Terminate the
-        // page loop cleanly; the base class marks the run `success`
-        // with docs_ingested=0.
-        if (
-          err instanceof SourceApiPermanentError &&
-          err.status === 404 &&
-          isEmptyResultBody(err.body)
-        ) {
-          this.logger('info', {
-            event: 'uspto_empty_result_set',
-            source: this.source_id,
-            offset,
-            body_preview: truncateForLog(err.body, 160),
+      let retries = 0;
+      // 413 retry loop: USPTO caps response payloads at 6 MB. On 413
+      // we halve this.pageSize and retry the same offset — the server
+      // accepted the query, it just won't materialize that much data
+      // at once. The loop below re-enters the outer while with the
+      // smaller page via `continue`, so the cursor doesn't advance
+      // until a page actually returns.
+      for (;;) {
+        try {
+          res = await this.fetchPage(this.endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Api-Key': this.apiKey,
+            },
+            body: JSON.stringify(body),
           });
-          return; // graceful termination
+          break; // success — exit retry loop, proceed to parse
+        } catch (err) {
+          // USPTO ODP returns HTTP 404 with a "No matching records" body
+          // when a valid query matches zero documents. Success-with-
+          // empty-result; terminate the page loop cleanly.
+          if (
+            err instanceof SourceApiPermanentError &&
+            err.status === 404 &&
+            isEmptyResultBody(err.body)
+          ) {
+            this.logger('info', {
+              event: 'uspto_empty_result_set',
+              source: this.source_id,
+              offset,
+              body_preview: truncateForLog(err.body, 160),
+            });
+            return;
+          }
+          // HTTP 413 → response payload exceeds 6 MB cap. Halve pageSize
+          // and retry the same offset. Capped at MAX_PAYLOAD_RETRIES so
+          // a persistent 413 (e.g. pageSize=1 still too big) still
+          // surfaces as a real error instead of looping forever.
+          if (
+            err instanceof SourceApiPermanentError &&
+            err.status === 413 &&
+            retries < MAX_PAYLOAD_RETRIES
+          ) {
+            const prev = this.pageSize;
+            const next = Math.max(1, Math.floor(prev / 2));
+            this.pageSize = next;
+            retries += 1;
+            this.logger('warn', {
+              event: 'uspto_payload_too_large_retry',
+              source: this.source_id,
+              offset,
+              retry: retries,
+              page_size_before: prev,
+              page_size_after: next,
+              body_preview: truncateForLog(err.body, 160),
+            });
+            // Rebuild body with the new pageSize and retry in-place.
+            body.pagination.limit = next;
+            continue;
+          }
+          if (err instanceof SourceApiPermanentError && err.status === 410) {
+            const bodyTail = err.body ? ` — body: ${err.body}` : '';
+            throw new SourceApiPermanentError(
+              `${this.source_id} endpoint returned HTTP 410 Gone (${this.endpoint})${bodyTail}. ` +
+                'USPTO may have moved or retired this ODP endpoint again. Check data.uspto.gov ' +
+                '→ Developer Portal for the current URL and set USPTO_ODP_ENDPOINT to override.',
+              { status: 410, body: err.body, source: this.source_id },
+            );
+          }
+          throw err;
         }
-        if (err instanceof SourceApiPermanentError && err.status === 410) {
-          const bodyTail = err.body ? ` — body: ${err.body}` : '';
-          throw new SourceApiPermanentError(
-            `${this.source_id} endpoint returned HTTP 410 Gone (${this.endpoint})${bodyTail}. ` +
-              'USPTO may have moved or retired this ODP endpoint again. Check data.uspto.gov ' +
-              '→ Developer Portal for the current URL and set USPTO_ODP_ENDPOINT to override.',
-            { status: 410, body: err.body, source: this.source_id },
-          );
-        }
-        throw err;
       }
 
       const payload = await res.json();
@@ -341,10 +410,11 @@ class PatentsViewWorker extends BaseWorker {
         offset,
         limit: this.pageSize,
       },
-      // fields: omitted on purpose. The default ODP response includes
-      // more metadata than the narrow list we would otherwise request,
-      // which helps while the abstract-field path is still being
-      // verified. We can narrow once the schema is pinned.
+      // Explicit field whitelist keeps the response small enough to
+      // stay under ODP's 6 MB cap. Without this the default response
+      // includes every PatentDataResponse property and 413s on broad
+      // Utility+CPC queries even at pageSize=25.
+      fields: this.fields,
     };
 
     return body;
@@ -446,6 +516,13 @@ function truncateForLog(str, max) {
   if (typeof str !== 'string') return str;
   if (str.length <= max) return str;
   return `${str.slice(0, max)}…`;
+}
+
+function parsePositiveInt(raw) {
+  if (raw == null) return null;
+  const n = Number(String(raw).trim());
+  if (!Number.isInteger(n) || n <= 0) return null;
+  return n;
 }
 
 function isoDateDaysAgo(now, days) {

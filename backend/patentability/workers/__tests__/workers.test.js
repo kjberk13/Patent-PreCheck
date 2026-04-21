@@ -365,6 +365,15 @@ test('USPTO ODP worker: POSTs canonical Swagger schema with X-Api-Key', async ()
   assert.equal(capturedBody.sort[0].order, 'asc');
   assert.equal(capturedBody.pagination.offset, 0);
   assert.equal(capturedBody.pagination.limit, 10);
+  // fields[] keeps the response under ODP's 6 MB cap. Must include
+  // the top-level ID and the applicationMetaData paths parseDocument
+  // reads from. Abstract intentionally excluded: not on the search
+  // response per Swagger (secondary /documents call needed).
+  assert.ok(Array.isArray(capturedBody.fields), 'fields[] is present');
+  assert.ok(capturedBody.fields.includes('applicationNumberText'));
+  assert.ok(capturedBody.fields.includes('applicationMetaData.filingDate'));
+  assert.ok(capturedBody.fields.includes('applicationMetaData.inventionTitle'));
+  assert.ok(capturedBody.fields.includes('applicationMetaData.cpcClassificationBag'));
 });
 
 test('USPTO ODP worker: parseDocument reads from applicationMetaData (nested ODP shape)', () => {
@@ -625,6 +634,84 @@ test('USPTO ODP worker: HTTP 404 WITHOUT the empty-result signal still propagate
     () => worker.run({ mode: 'delta' }),
     (err) => /permanent HTTP 404/.test(err.message),
   );
+});
+
+const USPTO_413_BODY = JSON.stringify({
+  code: '413',
+  message: 'Payload Too Large',
+  detailedMessage:
+    'Response payload exceeds allowed limit of 6MB, please refine your search criteria or reduce payload size by reducing page size',
+});
+
+test('USPTO ODP worker: HTTP 413 halves pageSize and retries the same offset', async () => {
+  const capturedLimits = [];
+  // First call: 413. Second call (with halved pageSize): 200.
+  nock('https://api.uspto.gov')
+    .post('/api/v1/patent/applications/search', (body) => {
+      capturedLimits.push(body.pagination.limit);
+      return true;
+    })
+    .reply(413, USPTO_413_BODY);
+  nock('https://api.uspto.gov')
+    .post('/api/v1/patent/applications/search', (body) => {
+      capturedLimits.push(body.pagination.limit);
+      return true;
+    })
+    .reply(200, odpFixture([12000001, 12000002]));
+  // Terminating empty page so the generator doesn't loop forever.
+  nock('https://api.uspto.gov')
+    .post('/api/v1/patent/applications/search')
+    .reply(200, odpFixture([]));
+
+  const logger = capturingLogger();
+  const worker = new PatentsViewWorker({
+    persistence: new MemoryWorkerPersistence(),
+    embeddings: new FakeEmbeddings(),
+    logger: logger.fn,
+    sleep: () => Promise.resolve(),
+    apiKey: 'k',
+    pageSize: 20,
+  });
+
+  const result = await worker.run({ mode: 'delta' });
+  assert.equal(result.status, 'success');
+  assert.equal(result.ingested, 2);
+  // First call sent the original limit; retry sent the halved limit.
+  assert.equal(capturedLimits[0], 20);
+  assert.equal(capturedLimits[1], 10);
+  // Worker instance retains the halved pageSize for subsequent pages.
+  assert.equal(worker.pageSize, 10);
+  const retries = logger.byEvent('uspto_payload_too_large_retry');
+  assert.equal(retries.length, 1);
+  assert.equal(retries[0].page_size_before, 20);
+  assert.equal(retries[0].page_size_after, 10);
+});
+
+test('USPTO ODP worker: HTTP 413 gives up after MAX_PAYLOAD_RETRIES and surfaces the error', async () => {
+  // 4 consecutive 413s — first request + 3 retries. The 4th failure
+  // should bubble out as SourceApiPermanentError.
+  for (let i = 0; i < 4; i += 1) {
+    nock('https://api.uspto.gov')
+      .post('/api/v1/patent/applications/search')
+      .reply(413, USPTO_413_BODY);
+  }
+
+  const worker = new PatentsViewWorker({
+    persistence: new MemoryWorkerPersistence(),
+    embeddings: new FakeEmbeddings(),
+    logger: () => {},
+    sleep: () => Promise.resolve(),
+    apiKey: 'k',
+    pageSize: 24,
+    maxHttpAttempts: 1,
+  });
+
+  await assert.rejects(
+    () => worker.run({ mode: 'delta' }),
+    (err) => /permanent HTTP 413/.test(err.message),
+  );
+  // 24 → 12 → 6 → 3 after three halvings.
+  assert.equal(worker.pageSize, 3);
 });
 
 // ---------------------------------------------------------------------
