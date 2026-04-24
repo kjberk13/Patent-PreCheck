@@ -3,9 +3,10 @@
 //
 // Behaviors:
 //   - Soft phone normalization on blur (US → "(XXX) XXX-XXXX")
-//   - "Same as formal address" checkbox toggles business-address
-//     fields + their required state
+//   - "Billing address is the same as my address" checkbox toggles
+//     billing-address fields + their required state
 //   - Pre-submit validation with inline error messages (no alert())
+//     (Business name field is optional and intentionally not validated)
 //   - Preserve ?access= URL param when navigating onward from the
 //     upgrade CTA (handled on analyze.html; this file owns the form
 //     behavior only)
@@ -93,17 +94,17 @@
     }
   }
 
-  // ---------- Business address toggle ----------
+  // ---------- Billing address toggle ----------
 
-  var BUSINESS_FIELD_IDS = [
-    'businessLine1',
-    'businessCity',
-    'businessState',
-    'businessZip',
+  var BILLING_FIELD_IDS = [
+    'billingLine1',
+    'billingCity',
+    'billingState',
+    'billingZip',
   ];
 
-  function setBusinessFieldsRequired(required) {
-    BUSINESS_FIELD_IDS.forEach(function (id) {
+  function setBillingFieldsRequired(required) {
+    BILLING_FIELD_IDS.forEach(function (id) {
       var input = $(id);
       if (!input) return;
       if (required) {
@@ -115,15 +116,15 @@
     });
   }
 
-  function wireBusinessCheckbox() {
-    var checkbox = $('businessSame');
-    var fieldsWrap = $('businessFields');
+  function wireBillingCheckbox() {
+    var checkbox = $('billingSame');
+    var fieldsWrap = $('billingFields');
     if (!checkbox || !fieldsWrap) return;
 
     function applyState() {
       var same = checkbox.checked;
       fieldsWrap.hidden = same;
-      setBusinessFieldsRequired(!same);
+      setBillingFieldsRequired(!same);
     }
 
     checkbox.addEventListener('change', applyState);
@@ -135,10 +136,10 @@
   var REQUIRED_FIELDS = [
     { id: 'firstName', label: 'first name' },
     { id: 'lastName', label: 'last name' },
-    { id: 'formalLine1', label: 'street address' },
-    { id: 'formalCity', label: 'city' },
-    { id: 'formalState', label: 'state' },
-    { id: 'formalZip', label: 'ZIP code' },
+    { id: 'addressLine1', label: 'street address' },
+    { id: 'addressCity', label: 'city' },
+    { id: 'addressState', label: 'state' },
+    { id: 'addressZip', label: 'ZIP code' },
   ];
 
   function validateRequiredText(fieldId, label) {
@@ -185,15 +186,15 @@
     return true;
   }
 
-  function validateBusinessAddressIfShown() {
-    var checkbox = $('businessSame');
-    if (!checkbox || checkbox.checked) return true; // same as formal — nothing to check
+  function validateBillingAddressIfShown() {
+    var checkbox = $('billingSame');
+    if (!checkbox || checkbox.checked) return true; // billing matches address — nothing to check
     var allValid = true;
     [
-      { id: 'businessLine1', label: 'business street address' },
-      { id: 'businessCity', label: 'business city' },
-      { id: 'businessState', label: 'business state' },
-      { id: 'businessZip', label: 'business ZIP code' },
+      { id: 'billingLine1', label: 'billing street address' },
+      { id: 'billingCity', label: 'billing city' },
+      { id: 'billingState', label: 'billing state' },
+      { id: 'billingZip', label: 'billing ZIP code' },
     ].forEach(function (f) {
       if (!validateRequiredText(f.id, f.label)) allValid = false;
     });
@@ -207,7 +208,7 @@
     });
     if (!validateEmail()) allValid = false;
     if (!validatePhone()) allValid = false;
-    if (!validateBusinessAddressIfShown()) allValid = false;
+    if (!validateBillingAddressIfShown()) allValid = false;
     return allValid;
   }
 
@@ -233,7 +234,7 @@
       }
     });
 
-    wireBusinessCheckbox();
+    wireBillingCheckbox();
 
     form.addEventListener('submit', function (event) {
       if (!validateAll()) {

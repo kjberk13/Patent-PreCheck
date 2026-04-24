@@ -64,10 +64,35 @@
 
     /* Shared nav/footer chrome — inherited via nav.js replacement */
     nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;
-      background:rgba(248,250,255,0.97);backdrop-filter:blur(12px);
+      background:rgba(248,250,255,0.97);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
       border-bottom:1px solid var(--border);height:68px;padding:0 36px}
+    .nav-logo{display:flex;align-items:center;text-decoration:none;flex-shrink:0}
+    .nav-links{display:flex;align-items:center;gap:28px;margin-left:32px;flex:1}
+    nav a.nav-link{font-size:14px;font-weight:500;color:#2D3748;text-decoration:none;transition:color .15s;white-space:nowrap}
+    nav a.nav-link:hover{color:#1D9E75}
+    nav a.nav-cta{flex-shrink:0;background:#0C2340;color:#fff;padding:10px 22px;border-radius:8px;
+      font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap;transition:background .15s;margin-left:40px;line-height:1.4}
+    nav a.nav-cta:hover{background:#1D9E75}
     footer{background:var(--navy);padding:48px 40px 32px;text-align:center}
     footer p{font-size:13px;color:rgba(255,255,255,.4)}
+    @media(max-width:760px){
+      nav .nav-links, nav a.nav-cta{display:none!important}
+      nav{padding:0 16px!important}
+    }
+    /* Logo draw-on animation (matches analyze.html / index.html / nav.js) */
+    .ppc-logo-node{opacity:0;animation:ppc-node-in .35s ease-out forwards;transform-box:fill-box;transform-origin:center}
+    .ppc-logo-node-1{animation-delay:.15s}
+    .ppc-logo-node-2{animation-delay:.30s}
+    .ppc-logo-node-3{animation-delay:.45s}
+    .ppc-logo-check{stroke-dasharray:30;stroke-dashoffset:30;animation:ppc-draw-check .45s cubic-bezier(.55,.15,.45,1) forwards}
+    .ppc-logo-check-1{animation-delay:.65s}
+    .ppc-logo-check-2{animation-delay:1.05s}
+    @keyframes ppc-node-in{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:scale(1)}}
+    @keyframes ppc-draw-check{to{stroke-dashoffset:0}}
+    @media (prefers-reduced-motion:reduce){
+      .ppc-logo-node{opacity:1;animation:none}
+      .ppc-logo-check{stroke-dashoffset:0;animation:none}
+    }
   </style>
   <link rel="stylesheet" href="mobile.css">
   <script src="nav.js" defer></script>
@@ -77,12 +102,30 @@
 
 <!-- Fallback nav (nav.js replaces on load) -->
 <nav>
-  <a href="index.html" style="display:flex;align-items:center;text-decoration:none">
+  <a href="index.html" class="nav-logo">
     <svg height="44" viewBox="0 0 214 44" xmlns="http://www.w3.org/2000/svg">
       <rect width="44" height="44" rx="8" fill="#0C447C"/>
+      <line x1="22" y1="15" x2="16" y2="15" stroke="rgba(255,255,255,.62)" stroke-width="1.1"/>
+      <line x1="22" y1="15" x2="28" y2="16" stroke="rgba(255,255,255,.62)" stroke-width="1.1"/>
+      <line x1="28" y1="16" x2="32" y2="21" stroke="rgba(255,255,255,.62)" stroke-width="1.1"/>
+      <line x1="16" y1="15" x2="16" y2="27" stroke="rgba(255,255,255,.62)" stroke-width="1.1"/>
+      <line x1="12" y1="21" x2="22" y2="15" stroke="rgba(255,255,255,.48)" stroke-width="1.1"/>
+      <line x1="16" y1="15" x2="12" y2="21" stroke="rgba(29,158,117,.5)" stroke-width="1.1"/>
+      <line class="ppc-logo-check ppc-logo-check-1" x1="12" y1="21" x2="16" y2="27" stroke="#1D9E75" stroke-width="2.6" stroke-linecap="round"/>
+      <line class="ppc-logo-check ppc-logo-check-2" x1="16" y1="27" x2="28" y2="16" stroke="#1D9E75" stroke-width="2.6" stroke-linecap="round"/>
+      <circle class="ppc-logo-node ppc-logo-node-1" cx="12" cy="21" r="2.7" fill="#1D9E75"/>
+      <circle class="ppc-logo-node ppc-logo-node-2" cx="16" cy="27" r="3.4" fill="#1D9E75"/>
+      <circle class="ppc-logo-node ppc-logo-node-3" cx="28" cy="16" r="2.7" fill="#1D9E75"/>
       <text x="56" y="27" font-family="'Playfair Display',Georgia,serif" font-size="19" font-weight="700" fill="#0C2340">Patent PreCheck<tspan font-size="10" dy="-7">&#8482;</tspan></text>
     </svg>
   </a>
+  <div class="nav-links">
+    <a href="platform.html" class="nav-link">The Platform</a>
+    <a href="index.html#pricing" class="nav-link">Pricing</a>
+    <a href="legal-intelligence.html" class="nav-link">Legal Intelligence</a>
+    <a href="attorneys.html" class="nav-link">Find an Attorney</a>
+  </div>
+  <a href="analyze.html" class="nav-cta">Check My Work &rarr;</a>
 </nav>
 
 <section class="signup-hero">
@@ -110,6 +153,11 @@
       </div>
 
       <div class="field">
+        <label class="field-label" for="businessName">Business name <span style="font-weight:400;color:#718096">(if applicable)</span></label>
+        <input class="field-input" type="text" id="businessName" name="business_name" autocomplete="organization">
+      </div>
+
+      <div class="field">
         <label class="field-label" for="emailAddress">Email address</label>
         <input class="field-input" type="email" id="emailAddress" name="email" autocomplete="email" inputmode="email" placeholder="name@example.com" required>
         <span class="field-error" data-for="emailAddress"></span>
@@ -122,87 +170,87 @@
         <span class="field-error" data-for="phoneNumber"></span>
       </div>
 
-      <fieldset class="field-group" id="formalAddressGroup">
-        <legend>Formal mailing address</legend>
+      <fieldset class="field-group" id="addressGroup">
+        <legend>Address</legend>
 
         <div class="field">
-          <label class="field-label" for="formalLine1">Address line 1</label>
-          <input class="field-input" type="text" id="formalLine1" name="formal_address_line1" autocomplete="address-line1" placeholder="123 Main St" required>
-          <span class="field-error" data-for="formalLine1"></span>
+          <label class="field-label" for="addressLine1">Address line 1</label>
+          <input class="field-input" type="text" id="addressLine1" name="address_line1" autocomplete="address-line1" placeholder="123 Main St" required>
+          <span class="field-error" data-for="addressLine1"></span>
         </div>
 
         <div class="field">
-          <label class="field-label" for="formalLine2">Address line 2 <span style="font-weight:400;color:#718096">(optional)</span></label>
-          <input class="field-input" type="text" id="formalLine2" name="formal_address_line2" autocomplete="address-line2" placeholder="Apt, suite, unit">
+          <label class="field-label" for="addressLine2">Address line 2 <span style="font-weight:400;color:#718096">(optional)</span></label>
+          <input class="field-input" type="text" id="addressLine2" name="address_line2" autocomplete="address-line2" placeholder="Apt, suite, unit">
         </div>
 
         <div class="field-row">
           <div class="field">
-            <label class="field-label" for="formalCity">City</label>
-            <input class="field-input" type="text" id="formalCity" name="formal_address_city" autocomplete="address-level2" required>
-            <span class="field-error" data-for="formalCity"></span>
+            <label class="field-label" for="addressCity">City</label>
+            <input class="field-input" type="text" id="addressCity" name="address_city" autocomplete="address-level2" required>
+            <span class="field-error" data-for="addressCity"></span>
           </div>
           <div class="field">
-            <label class="field-label" for="formalState">State / Province</label>
-            <input class="field-input" type="text" id="formalState" name="formal_address_state" autocomplete="address-level1" required>
-            <span class="field-error" data-for="formalState"></span>
+            <label class="field-label" for="addressState">State / Province</label>
+            <input class="field-input" type="text" id="addressState" name="address_state" autocomplete="address-level1" required>
+            <span class="field-error" data-for="addressState"></span>
           </div>
         </div>
 
         <div class="field-row">
           <div class="field">
-            <label class="field-label" for="formalZip">ZIP / Postal code</label>
-            <input class="field-input" type="text" id="formalZip" name="formal_address_zip" autocomplete="postal-code" required>
-            <span class="field-error" data-for="formalZip"></span>
+            <label class="field-label" for="addressZip">ZIP / Postal code</label>
+            <input class="field-input" type="text" id="addressZip" name="address_zip" autocomplete="postal-code" required>
+            <span class="field-error" data-for="addressZip"></span>
           </div>
-          <!-- US-only for MVP scope; country selector deferred to a later PR -->
+          <!-- US-only for MVP; international country selector deferred to a later PR -->
         </div>
-        <input type="hidden" name="formal_country" value="US">
+        <input type="hidden" name="address_country" value="US">
       </fieldset>
 
-      <fieldset class="field-group" id="businessAddressGroup">
-        <legend>Business address</legend>
+      <fieldset class="field-group" id="billingAddressGroup">
+        <legend>Billing address</legend>
 
-        <label class="checkbox-row" for="businessSame">
-          <input type="checkbox" id="businessSame" name="business_address_same_as_formal" checked>
-          Same as my formal mailing address
+        <label class="checkbox-row" for="billingSame">
+          <input type="checkbox" id="billingSame" name="billing_same_as_address" checked>
+          Billing address is the same as my address
         </label>
 
-        <div id="businessFields" hidden>
+        <div id="billingFields" hidden>
           <div class="field">
-            <label class="field-label" for="businessLine1">Address line 1</label>
-            <input class="field-input" type="text" id="businessLine1" name="business_address_line1" autocomplete="address-line1" placeholder="123 Main St">
-            <span class="field-error" data-for="businessLine1"></span>
+            <label class="field-label" for="billingLine1">Address line 1</label>
+            <input class="field-input" type="text" id="billingLine1" name="billing_line1" autocomplete="address-line1" placeholder="123 Main St">
+            <span class="field-error" data-for="billingLine1"></span>
           </div>
 
           <div class="field">
-            <label class="field-label" for="businessLine2">Address line 2 <span style="font-weight:400;color:#718096">(optional)</span></label>
-            <input class="field-input" type="text" id="businessLine2" name="business_address_line2" autocomplete="address-line2" placeholder="Suite, floor, unit">
+            <label class="field-label" for="billingLine2">Address line 2 <span style="font-weight:400;color:#718096">(optional)</span></label>
+            <input class="field-input" type="text" id="billingLine2" name="billing_line2" autocomplete="address-line2" placeholder="Suite, floor, unit">
           </div>
 
           <div class="field-row">
             <div class="field">
-              <label class="field-label" for="businessCity">City</label>
-              <input class="field-input" type="text" id="businessCity" name="business_address_city" autocomplete="address-level2">
-              <span class="field-error" data-for="businessCity"></span>
+              <label class="field-label" for="billingCity">City</label>
+              <input class="field-input" type="text" id="billingCity" name="billing_city" autocomplete="address-level2">
+              <span class="field-error" data-for="billingCity"></span>
             </div>
             <div class="field">
-              <label class="field-label" for="businessState">State / Province</label>
-              <input class="field-input" type="text" id="businessState" name="business_address_state" autocomplete="address-level1">
-              <span class="field-error" data-for="businessState"></span>
+              <label class="field-label" for="billingState">State / Province</label>
+              <input class="field-input" type="text" id="billingState" name="billing_state" autocomplete="address-level1">
+              <span class="field-error" data-for="billingState"></span>
             </div>
           </div>
 
           <div class="field-row">
             <div class="field">
-              <label class="field-label" for="businessZip">ZIP / Postal code</label>
-              <input class="field-input" type="text" id="businessZip" name="business_address_zip" autocomplete="postal-code">
-              <span class="field-error" data-for="businessZip"></span>
+              <label class="field-label" for="billingZip">ZIP / Postal code</label>
+              <input class="field-input" type="text" id="billingZip" name="billing_zip" autocomplete="postal-code">
+              <span class="field-error" data-for="billingZip"></span>
             </div>
           </div>
         </div>
 
-        <input type="hidden" name="business_country" value="US">
+        <input type="hidden" name="billing_country" value="US">
       </fieldset>
 
       <div class="signup-submit-wrap">
