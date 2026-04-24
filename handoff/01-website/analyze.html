@@ -180,6 +180,20 @@
       font-size:15px;font-weight:600;cursor:pointer;font-family:var(--sans)}
     .btn-report:hover{background:#188f68}
     .report-note{font-size:11px;color:rgba(255,255,255,.4);margin-top:12px}
+    /* Interactive Code Review upgrade CTA (paid-tier entry point) */
+    .review-upgrade-cta{background:var(--navy);border-radius:18px;padding:28px 32px;text-align:center;margin-bottom:18px}
+    .review-upgrade-cta h3{font-family:var(--serif);font-size:24px;color:#fff;margin:0 0 18px;font-weight:700;line-height:1.25}
+    .review-upgrade-cta ul{list-style:none;padding:0;margin:0 auto 18px;max-width:520px;text-align:left;display:flex;flex-direction:column;gap:10px}
+    .review-upgrade-cta li{font-size:14px;color:rgba(255,255,255,.85);line-height:1.55;display:flex;gap:10px;align-items:flex-start}
+    .review-upgrade-cta li::before{content:"\2713";color:#4DD9A8;flex-shrink:0;font-weight:700}
+    .review-upgrade-cta .cta-price{font-family:var(--serif);font-size:22px;color:#fff;margin-bottom:16px;font-weight:700}
+    .review-upgrade-cta .cta-button{background:#1D9E75;color:#fff;border:none;padding:13px 30px;border-radius:9px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--sans);transition:background .15s}
+    .review-upgrade-cta .cta-button:hover{background:#188f68}
+    @media(max-width:760px){
+      .review-upgrade-cta{padding:22px 20px!important}
+      .review-upgrade-cta h3{font-size:20px!important}
+      .review-upgrade-cta .cta-button{width:100%}
+    }
     .privacy-banner{background:rgba(29,158,117,.06);border:1px solid rgba(29,158,117,.2);border-radius:10px;
       padding:14px 18px;margin-bottom:14px;display:flex;align-items:center;gap:12px}
     .privacy-ico{width:24px;height:24px;border-radius:50%;background:#1D9E75;display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -365,7 +379,7 @@
     <div class="upsell-grid">
       <div class="uc featured">
         <div class="uc-ico">🔍</div>
-        <div class="uc-name">Full Interactive Review — $69.99</div>
+        <div class="uc-name">Interactive Code Review — $69.95</div>
         <div class="uc-desc">AI-guided review section by section. Specific edits, live score updates. 30-day window, log in anytime.</div>
         <a href="platform.html" class="uc-btn p">See how it works &rarr;</a>
       </div>
@@ -439,7 +453,7 @@
         </div>
         <div class="priorart-num" id="priorArtCount">~50</div>
       </div>
-      <div class="priorart-text">Your score was informed by comparison against approximately <span id="priorArtCountInline">50</span> nearest prior art documents from our daily-updated index. <strong>The full Report shows the top references with overlap and distinction analysis</strong> — what's similar, what's different, and how to position your work for the strongest filing.</div>
+      <div class="priorart-text">Your score was informed by comparison against approximately <span id="priorArtCountInline">50</span> nearest prior art documents from our daily-updated index. <strong>The Interactive Code Review shows the top references with overlap and distinction analysis</strong> — what's similar, what's different, and how to position your work for the strongest filing.</div>
     </div>
   </div>
 
@@ -457,6 +471,18 @@
     </div>
     <button class="btn-report" onclick="alert('Payment integration coming soon')">Upgrade to full Report &mdash; $69.99</button>
     <div class="report-note">One-time &middot; 30-day interactive window &middot; No subscription</div>
+  </div>
+
+  <!-- Interactive Code Review upgrade CTA — paid tier entry point -->
+  <div class="review-upgrade-cta">
+    <h3>Ready for the full Interactive Code Review?</h3>
+    <ul>
+      <li>Deeper, personalized analysis with live score refinement</li>
+      <li>Attorney-ready invention disclosure document</li>
+      <li>PDF report emailed to you + 30-day web access</li>
+    </ul>
+    <div class="cta-price">$69.95 &mdash; one-time</div>
+    <button class="cta-button" id="upgradeToReviewBtn">Upgrade to Interactive Code Review &rarr;</button>
   </div>
 
   <div class="privacy-banner">
@@ -648,7 +674,7 @@ const DEMO_DATA={
      strengthen:'Strengthen: document the decision points that led to this architecture — the record itself reinforces novelty.'},
     {q:'Is it inventive?',statute:'§103 non-obviousness',score:58,
      finding:"The combination of components is functional but doesn't yet clearly articulate why a skilled developer wouldn't have obviously tried this.",
-     strengthen:'Strengthen: describe the unexpected technical result — coaching available in the full Report.'},
+     strengthen:'Strengthen: describe the unexpected technical result — coaching available in the Interactive Code Review.'},
     {q:'Does it work and matter?',statute:'§101 utility',score:85,
      finding:'The invention produces a specific, measurable benefit — a concrete improvement that can be demonstrated.',
      strengthen:'Strengthen: quantify the improvement with benchmark data if available.'}
@@ -778,6 +804,19 @@ $('analyzeBtn').addEventListener('click', async()=>{
   await new Promise(r2=>setTimeout(r2,400));
   showResults(data);
 });
+
+// Upgrade CTA — preserve any ?access= URL param when navigating to signup
+const upgradeBtn = $('upgradeToReviewBtn');
+if (upgradeBtn) {
+  upgradeBtn.addEventListener('click', () => {
+    const params = new URLSearchParams(window.location.search);
+    const access = params.get('access');
+    const target = access
+      ? '/review-signup.html?access=' + encodeURIComponent(access)
+      : '/review-signup.html';
+    window.location.href = target;
+  });
+}
 </script>
 </body>
 </html>
