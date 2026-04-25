@@ -62,13 +62,14 @@ Create a new HTML page at `apps/website/review-signup.html` (mirror to `handoff/
 - Form with 6 required fields (see "Signup Form" below)
 - Footer: uses shared `nav.js`
 
-**Signup form (6 REQUIRED fields — all six mandatory per FEATURES_STATE.md):**
+**Signup form (6 REQUIRED fields + 1 optional — six mandatory per FEATURES_STATE.md):**
 1. First name (text input, required)
 2. Last name (text input, required)
-3. Email (email input, required, validated format)
-4. Phone (tel input, required, US format validation with international fallback)
-5. Formal mailing address (4 sub-fields: Line 1, Line 2 [optional], City, State, Zip, Country [default US])
-6. Business address — with "Same as formal address" checkbox that auto-fills; if unchecked, same 4 sub-fields
+3. Business name (if applicable) — non-required text input, `name="business_name"`, `autocomplete="organization"`
+4. Email (email input, required, validated format)
+5. Phone (tel input, required, US format validation with international fallback)
+6. Address (4 sub-fields: Line 1, Line 2 [optional], City, State, Zip; country always US for MVP via hidden input)
+7. Billing address — with "Billing address is the same as my address" checkbox (default checked) that hides billing fields; if unchecked, same sub-fields plus hidden `billing_country=US`
 
 **Form submission:**
 - For this commit: `<form>` posts to a placeholder endpoint that returns 501 Not Implemented
@@ -107,21 +108,22 @@ CREATE TABLE code_review_signups (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL,
+  business_name TEXT,
   email TEXT NOT NULL,
   phone TEXT NOT NULL,
-  formal_address_line1 TEXT NOT NULL,
-  formal_address_line2 TEXT,
-  formal_address_city TEXT NOT NULL,
-  formal_address_state TEXT NOT NULL,
-  formal_address_zip TEXT NOT NULL,
-  formal_address_country TEXT NOT NULL DEFAULT 'US',
-  business_address_same_as_formal BOOLEAN NOT NULL DEFAULT FALSE,
-  business_address_line1 TEXT,
-  business_address_line2 TEXT,
-  business_address_city TEXT,
-  business_address_state TEXT,
-  business_address_zip TEXT,
-  business_address_country TEXT DEFAULT 'US',
+  address_line1 TEXT NOT NULL,
+  address_line2 TEXT,
+  address_city TEXT NOT NULL,
+  address_state TEXT NOT NULL,
+  address_zip TEXT NOT NULL,
+  address_country TEXT NOT NULL DEFAULT 'US',
+  billing_same_as_address BOOLEAN NOT NULL DEFAULT FALSE,
+  billing_line1 TEXT,
+  billing_line2 TEXT,
+  billing_city TEXT,
+  billing_state TEXT,
+  billing_zip TEXT,
+  billing_country TEXT DEFAULT 'US',
   access_method TEXT NOT NULL CHECK (access_method IN ('beta_bypass', 'stripe_payment')),
   access_token_used TEXT,
   input_hash TEXT NOT NULL,
