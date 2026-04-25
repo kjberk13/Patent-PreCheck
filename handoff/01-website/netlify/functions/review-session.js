@@ -283,7 +283,7 @@ function claudeScoreAnswerAdapter() {
       return { bucket: 'specific', evidenceBoost: evidenceUploads.length > 0 ? 10 : 0 };
     }
     const anthropic = new Anthropic({ apiKey });
-    const model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514';
+    const model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
     const prompt = buildScoringPrompt({
       category,
       questionText,

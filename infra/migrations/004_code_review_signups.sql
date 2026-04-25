@@ -25,6 +25,14 @@
 --   billing_*           — billing address (was business_address_*)
 --   business_name       — optional, nullable (was not present)
 --   billing_same_as_address — toggle (was business_address_same_as_formal)
+--
+-- Schema invariant: every row has a complete billing address. When the
+-- user checks "Billing address is the same as my address", the signup
+-- Lambda copies the address_* values into the billing_* columns at
+-- INSERT time — the database never stores NULL billing fields. This
+-- keeps Phase 4 Stripe processing simple (always reads from billing_*
+-- regardless of the toggle). billing_line2 stays nullable to mirror
+-- address_line2 (apartment/suite is optional in both).
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
@@ -45,12 +53,12 @@ CREATE TABLE IF NOT EXISTS code_review_signups (
   address_zip                 TEXT        NOT NULL,
   address_country             TEXT        NOT NULL DEFAULT 'US',
   billing_same_as_address     BOOLEAN     NOT NULL DEFAULT FALSE,
-  billing_line1               TEXT,
+  billing_line1               TEXT        NOT NULL,
   billing_line2               TEXT,
-  billing_city                TEXT,
-  billing_state               TEXT,
-  billing_zip                 TEXT,
-  billing_country             TEXT        DEFAULT 'US',
+  billing_city                TEXT        NOT NULL,
+  billing_state               TEXT        NOT NULL,
+  billing_zip                 TEXT        NOT NULL,
+  billing_country             TEXT        NOT NULL DEFAULT 'US',
   access_method               TEXT        NOT NULL CHECK (access_method IN ('beta_bypass', 'stripe_payment')),
   access_token_used           TEXT,
   input_hash                  TEXT        NOT NULL,

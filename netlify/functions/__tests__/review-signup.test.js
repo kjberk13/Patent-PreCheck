@@ -167,17 +167,28 @@ test('without access_token (or wrong token): 402 payment_required, row still ins
   assert.ok(!params.includes('WRONG-TOKEN'));
 });
 
-test('billing fields are nulled out when billing_same_as_address=true', async () => {
+test('billing fields are auto-copied from address when billing_same_as_address=true', async () => {
   const body = validBody({
     access_token: process.env.BETA_ACCESS_TOKEN,
     billing_same_as_address: true,
-    // attacker tries to inject billing fields anyway
+    // attacker tries to inject billing fields anyway — should be ignored
     billing_line1: 'Should be ignored',
     billing_city: 'Ghost city',
   });
   await handler(postJson(body));
   assert.equal(neonFake.calls.length, 1);
   const params = neonFake.calls[0].params;
+  // Attacker-supplied billing values are NOT stored
   assert.ok(!params.includes('Should be ignored'));
   assert.ok(!params.includes('Ghost city'));
+  // Address values ARE present in billing positions — count occurrences
+  // (each address field should appear twice: once for address_*, once for billing_*)
+  const addressLine1Count = params.filter((p) => p === '123 Main St').length;
+  const cityCount = params.filter((p) => p === 'Sample City').length;
+  const stateCount = params.filter((p) => p === 'AZ').length;
+  const zipCount = params.filter((p) => p === '12345').length;
+  assert.equal(addressLine1Count, 2, 'address_line1 used in both address and billing');
+  assert.equal(cityCount, 2, 'city used in both address and billing');
+  assert.equal(stateCount, 2, 'state used in both address and billing');
+  assert.equal(zipCount, 2, 'zip used in both address and billing');
 });

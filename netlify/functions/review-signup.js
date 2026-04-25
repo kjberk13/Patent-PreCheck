@@ -23,9 +23,17 @@
 //   input_hash (SHA-256 hex, 64 chars), input_length (int)
 //
 // Optional body fields:
-//   business_name, address_line2, billing_line1, billing_line2,
-//   billing_city, billing_state, billing_zip, access_token,
-//   address_country (defaults 'US'), billing_country (defaults 'US')
+//   business_name, address_line2, access_token,
+//   address_country (defaults 'US')
+//
+// Conditionally required body fields (when billing_same_as_address is
+// false): billing_line1, billing_city, billing_state, billing_zip.
+// billing_line2 stays optional (mirrors address_line2). When
+// billing_same_as_address is true these are ignored — the Lambda
+// copies the corresponding address_* values into the billing_*
+// columns at INSERT time so every row has a complete billing
+// address (Phase 4 Stripe relies on this invariant). billing_country
+// is always 'US' for MVP scope and is never read from the request.
 //
 // Out of scope here: the actual session-engine flow lives in
 // review-session.js. Successful signup gives the client a redirect_url
@@ -166,12 +174,12 @@ exports.handler = async function handler(event) {
         body.address_zip,
         body.address_country || 'US',
         billingSameAsAddress,
-        billingSameAsAddress ? null : body.billing_line1,
-        billingSameAsAddress ? null : body.billing_line2 || null,
-        billingSameAsAddress ? null : body.billing_city,
-        billingSameAsAddress ? null : body.billing_state,
-        billingSameAsAddress ? null : body.billing_zip,
-        billingSameAsAddress ? null : body.billing_country || 'US',
+        billingSameAsAddress ? body.address_line1 : body.billing_line1,
+        billingSameAsAddress ? body.address_line2 || null : body.billing_line2 || null,
+        billingSameAsAddress ? body.address_city : body.billing_city,
+        billingSameAsAddress ? body.address_state : body.billing_state,
+        billingSameAsAddress ? body.address_zip : body.billing_zip,
+        'US', // billing_country always 'US' for MVP per US-only scope
         accessMethod,
         // Store the literal token value when bypass succeeded so we
         // can audit beta-test usage. For non-bypass requests we record
