@@ -37,6 +37,7 @@
 - Where does the legal intelligence database live — same Neon instance or separate? (Likely same Neon, new schema for unified querying)
 - How does the engine incorporate legal updates into scoring — retraining, prompt injection with recent cases, or hybrid? (Likely prompt injection with structured doctrinal summary for first iteration)
 - Re-review trigger thresholds — what counts as a "material" shift worth notifying users about?
+- **Real claim extraction engine** — current implementation in `review-session.js` uses summary-derived heuristic (top opportunities → claim candidate titles); needs dedicated engineering for accurate claim extraction in Phase 3+. The placeholder is documented inline in `backend/code_review/session_engine.js#deriveClaimsFromScoring`.
 
 ### Marketing copy
 - **57% Section 101 failure stat** — verify source in the April 15 competitive analysis before using in public marketing copy. If it traces to a credible citation, it's a powerful hook. If it's uncited speculation, don't use it.

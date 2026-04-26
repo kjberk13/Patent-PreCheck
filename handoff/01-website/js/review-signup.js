@@ -237,17 +237,147 @@
     wireBillingCheckbox();
 
     form.addEventListener('submit', function (event) {
+      // Always preventDefault — we POST as JSON via fetch(), not as
+      // form-encoded. The Lambda parses JSON.
+      event.preventDefault();
       if (!validateAll()) {
-        event.preventDefault();
-        // Focus the first invalid field so keyboard users land there
         var firstInvalid = form.querySelector('.field-input.invalid');
         if (firstInvalid && typeof firstInvalid.focus === 'function') {
           firstInvalid.focus();
         }
+        return;
       }
-      // If valid, let the browser POST to the form's action target.
-      // The placeholder endpoint returns 501 Not Implemented; Commit 2
-      // replaces the action with the real session-engine endpoint.
+      submitSignup(form);
     });
   });
+
+  // ---------- Submission flow ----------
+
+  function showBanner(kind, message) {
+    var banner = $('signupBanner');
+    if (!banner) return;
+    banner.className = 'signup-banner ' + kind;
+    banner.textContent = message;
+    banner.hidden = false;
+  }
+
+  function hideBanner() {
+    var banner = $('signupBanner');
+    if (!banner) return;
+    banner.hidden = true;
+    banner.textContent = '';
+  }
+
+  function buildSubmissionPayload(form) {
+    var data = new FormData(form);
+    // FormData uses the form's name= attrs — see review-signup.html for
+    // the names. Convert to a plain object for JSON serialization.
+    var payload = {};
+    data.forEach(function (value, key) {
+      payload[key] = value;
+    });
+    // Coerce the checkbox to a boolean (FormData gives the literal "on"
+    // string when checked, omits the field when unchecked).
+    payload.billing_same_as_address = form
+      .querySelector('input[name="billing_same_as_address"]')
+      .checked;
+
+    // Access token from URL ?access= param (analyze.html's upgrade CTA
+    // preserves it; users can also paste a beta-access link directly).
+    var urlParams = new URLSearchParams(window.location.search);
+    var accessToken = urlParams.get('access');
+    if (accessToken) payload.access_token = accessToken;
+
+    // Input hash + length come from sessionStorage. Commit 3 wires
+    // analyze.html to compute SHA-256 of the user's pasted code/text
+    // and stash it under this key before navigating to the upgrade
+    // CTA. If absent here, the Lambda will 400 — fail fast is better
+    // than half-broken state.
+    var stashed = readStashedInput();
+    if (stashed) {
+      payload.input_hash = stashed.hash;
+      payload.input_length = stashed.length;
+    }
+
+    return payload;
+  }
+
+  function readStashedInput() {
+    try {
+      var raw = window.sessionStorage.getItem('patent-precheck-review-input');
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      if (typeof parsed.hash !== 'string' || typeof parsed.length !== 'number') return null;
+      return parsed;
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function submitSignup(form) {
+    var submitBtn = $('signupSubmit');
+    var originalText = submitBtn ? submitBtn.textContent : '';
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting…';
+    }
+    hideBanner();
+
+    var payload = buildSubmissionPayload(form);
+
+    if (!payload.input_hash) {
+      showBanner(
+        'error',
+        'Your invention details aren’t on file yet. Run a free analysis on the analyze page first, then click Upgrade to Interactive Code Review to land here with your details attached.',
+      );
+      restoreButton(submitBtn, originalText);
+      return;
+    }
+
+    fetch(form.action, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then(function (res) {
+        return res.json().then(function (body) {
+          return { status: res.status, body: body };
+        });
+      })
+      .then(function (response) {
+        if (response.status === 200 && response.body && response.body.redirect_url) {
+          // Beta-bypass success — navigate into the Q&A flow.
+          window.location.href = response.body.redirect_url;
+          return;
+        }
+        if (response.status === 402) {
+          // Captured-but-payment-required path. Friendly message; the
+          // user's details are saved (Stripe wires in Phase 4).
+          showBanner(
+            'info',
+            (response.body && response.body.message) ||
+              'Stripe payment integration is coming soon. We have your details on file.',
+          );
+          restoreButton(submitBtn, originalText);
+          return;
+        }
+        if (response.status >= 400 && response.body && response.body.error) {
+          showBanner('error', response.body.error);
+          restoreButton(submitBtn, originalText);
+          return;
+        }
+        showBanner('error', 'Something went wrong. Please try again shortly.');
+        restoreButton(submitBtn, originalText);
+      })
+      .catch(function () {
+        showBanner('error', 'Network error. Please check your connection and try again.');
+        restoreButton(submitBtn, originalText);
+      });
+  }
+
+  function restoreButton(btn, originalText) {
+    if (!btn) return;
+    btn.disabled = false;
+    btn.textContent = originalText || 'Continue to review';
+  }
 })();

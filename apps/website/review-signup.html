@@ -53,6 +53,11 @@
     .btn-submit:hover{background:#188f68}
     .btn-submit:disabled{background:#A0AEC0;cursor:not-allowed}
     .signup-submit-note{text-align:center;font-size:12px;color:#718096;margin-top:12px;line-height:1.5}
+    /* Status banner — surfaces fetch result (success / pending-payment / error) */
+    .signup-banner{padding:12px 14px;border-radius:10px;margin-bottom:14px;font-size:14px;line-height:1.55}
+    .signup-banner.error{background:#FFF5F5;border:1px solid #FEB2B2;color:#742A2A}
+    .signup-banner.info{background:#EBF8FF;border:1px solid #BEE3F8;color:#2C5282}
+    .signup-banner.success{background:#F0FFF4;border:1px solid #9AE6B4;color:#22543D}
 
     /* Mobile */
     @media(max-width:760px){
@@ -137,7 +142,7 @@
   <div class="signup-card">
     <p class="signup-intro">All fields are required. Your information is used only to prepare your report and contact you about the review. See our <a href="privacy.html" style="color:var(--green);text-decoration:none">privacy policy</a> for details.</p>
 
-    <form id="signupForm" action="/.netlify/functions/review-signup-placeholder" method="POST" novalidate>
+    <form id="signupForm" action="/.netlify/functions/review-signup" method="POST" novalidate>
 
       <div class="field-row">
         <div class="field">
@@ -254,6 +259,7 @@
       </fieldset>
 
       <div class="signup-submit-wrap">
+        <div class="signup-banner" id="signupBanner" hidden></div>
         <button type="submit" class="btn-submit" id="signupSubmit">Continue to review</button>
         <p class="signup-submit-note">Payment is bypassed for beta access. The next step begins your Interactive Code Review session.</p>
       </div>
