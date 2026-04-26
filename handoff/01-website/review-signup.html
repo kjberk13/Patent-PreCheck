@@ -217,14 +217,14 @@
         <legend>Billing address</legend>
 
         <label class="checkbox-row" for="billingSame">
-          <input type="checkbox" id="billingSame" name="billing_same_as_address" checked>
+          <input type="checkbox" id="billingSame" name="billing_same_as_address">
           Billing address is the same as my address
         </label>
 
-        <div id="billingFields" hidden>
+        <div id="billingFields">
           <div class="field">
             <label class="field-label" for="billingLine1">Address line 1</label>
-            <input class="field-input" type="text" id="billingLine1" name="billing_line1" autocomplete="address-line1" placeholder="123 Main St">
+            <input class="field-input" type="text" id="billingLine1" name="billing_line1" autocomplete="address-line1" placeholder="123 Main St" required>
             <span class="field-error" data-for="billingLine1"></span>
           </div>
 
@@ -236,12 +236,12 @@
           <div class="field-row">
             <div class="field">
               <label class="field-label" for="billingCity">City</label>
-              <input class="field-input" type="text" id="billingCity" name="billing_city" autocomplete="address-level2">
+              <input class="field-input" type="text" id="billingCity" name="billing_city" autocomplete="address-level2" required>
               <span class="field-error" data-for="billingCity"></span>
             </div>
             <div class="field">
               <label class="field-label" for="billingState">State / Province</label>
-              <input class="field-input" type="text" id="billingState" name="billing_state" autocomplete="address-level1">
+              <input class="field-input" type="text" id="billingState" name="billing_state" autocomplete="address-level1" required>
               <span class="field-error" data-for="billingState"></span>
             </div>
           </div>
@@ -249,7 +249,7 @@
           <div class="field-row">
             <div class="field">
               <label class="field-label" for="billingZip">ZIP / Postal code</label>
-              <input class="field-input" type="text" id="billingZip" name="billing_zip" autocomplete="postal-code">
+              <input class="field-input" type="text" id="billingZip" name="billing_zip" autocomplete="postal-code" required>
               <span class="field-error" data-for="billingZip"></span>
             </div>
           </div>
