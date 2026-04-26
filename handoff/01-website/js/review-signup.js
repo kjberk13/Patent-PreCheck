@@ -306,7 +306,13 @@
       // Always preventDefault — we POST as JSON via fetch(), not as
       // form-encoded. The Lambda parses JSON.
       event.preventDefault();
+      // Nit 1 (Bucket 2 Component C): disable the submit button
+      // BEFORE validation so a rapid double-click can't fire two
+      // simultaneous submissions while validateAll() runs.
+      var submitBtn = $('signupSubmit');
+      if (submitBtn) submitBtn.disabled = true;
       if (!validateAll()) {
+        if (submitBtn) submitBtn.disabled = false;
         var firstInvalid = form.querySelector('.field-input.invalid');
         if (firstInvalid && typeof firstInvalid.focus === 'function') {
           firstInvalid.focus();
@@ -321,7 +327,14 @@
 
   function showBanner(kind, message) {
     var banner = $('signupBanner');
-    if (!banner) return;
+    if (!banner) {
+      // Nit 3 (Bucket 2 Component C): the page should always have
+      // #signupBanner; if it's missing something is wrong with the
+      // markup. Drop a warning so it shows up in the console rather
+      // than silently swallowing the message.
+      console.warn('signupBanner element not found; banner message dropped:', kind, message);
+      return;
+    }
     banner.className = 'signup-banner ' + kind;
     banner.textContent = message;
     banner.hidden = false;
@@ -329,7 +342,10 @@
 
   function hideBanner() {
     var banner = $('signupBanner');
-    if (!banner) return;
+    if (!banner) {
+      console.warn('signupBanner element not found; cannot hide banner');
+      return;
+    }
     banner.hidden = true;
     banner.textContent = '';
   }
@@ -381,12 +397,14 @@
   }
 
   function submitSignup(form) {
+    // Nit 2 (Bucket 2 Component C): build the payload and check
+    // input_hash BEFORE flipping the button to "Submitting…". If the
+    // hash is missing we want a clear inline error, not a transient
+    // "Submitting…" → "error" flicker. The submit listener has
+    // already disabled the button (Nit 1); restore it on early
+    // return.
     var submitBtn = $('signupSubmit');
     var originalText = submitBtn ? submitBtn.textContent : '';
-    if (submitBtn) {
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Submitting…';
-    }
     hideBanner();
 
     var payload = buildSubmissionPayload(form);
@@ -398,6 +416,10 @@
       );
       restoreButton(submitBtn, originalText);
       return;
+    }
+
+    if (submitBtn) {
+      submitBtn.textContent = 'Submitting…';
     }
 
     fetch(form.action, {
