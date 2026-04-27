@@ -94,41 +94,113 @@
     }
   }
 
-  // ---------- Billing address toggle ----------
+  // ---------- Billing address checkbox + live sync ----------
+  //
+  // UX spec (Bucket 2 Component B):
+  //   - Checkbox starts UNCHECKED. Billing fields are always visible
+  //     and always required (the `required` attribute is set in HTML).
+  //   - When user CHECKS the box: billing fields auto-populate from
+  //     the current address fields. Live sync starts — typing into
+  //     any address field mirrors the value into its billing twin.
+  //   - When user types in a billing field while the box is checked:
+  //     the box auto-unchecks (billing now diverges from address).
+  //     Sync stops.
+  //   - When user UNCHECKS the box manually: billing keeps its values.
+  //   - When user RE-CHECKS the box AFTER editing billing: a native
+  //     confirm() dialog asks them to confirm overwrite. Yes →
+  //     repopulate from address and resume sync. No → checkbox
+  //     unchecks immediately, billing keeps the user's edits.
 
-  var BILLING_FIELD_IDS = [
-    'billingLine1',
-    'billingCity',
-    'billingState',
-    'billingZip',
+  var ADDRESS_BILLING_PAIRS = [
+    ['addressLine1', 'billingLine1'],
+    ['addressLine2', 'billingLine2'],
+    ['addressCity', 'billingCity'],
+    ['addressState', 'billingState'],
+    ['addressZip', 'billingZip'],
   ];
 
-  function setBillingFieldsRequired(required) {
-    BILLING_FIELD_IDS.forEach(function (id) {
-      var input = $(id);
-      if (!input) return;
-      if (required) {
-        input.setAttribute('required', '');
-      } else {
-        input.removeAttribute('required');
-        clearError(id);
+  function copyAddressToBilling() {
+    ADDRESS_BILLING_PAIRS.forEach(function (pair) {
+      var addr = $(pair[0]);
+      var bill = $(pair[1]);
+      if (addr && bill) {
+        bill.value = addr.value;
+        // Programmatic .value = ... does NOT fire input events, so the
+        // billing-edit detector below won't false-positive on this sync.
+        // Clear any leftover validation-error decoration on the billing
+        // field — the new value is whatever the address had.
+        if (bill.classList.contains('invalid')) clearError(pair[1]);
       }
+    });
+  }
+
+  function billingDiffersFromAddress() {
+    return ADDRESS_BILLING_PAIRS.some(function (pair) {
+      var addr = $(pair[0]);
+      var bill = $(pair[1]);
+      var av = addr ? addr.value || '' : '';
+      var bv = bill ? bill.value || '' : '';
+      return av !== bv;
     });
   }
 
   function wireBillingCheckbox() {
     var checkbox = $('billingSame');
-    var fieldsWrap = $('billingFields');
-    if (!checkbox || !fieldsWrap) return;
+    if (!checkbox) return;
+    checkbox.addEventListener('change', function () {
+      if (!checkbox.checked) {
+        // User just unchecked. Billing keeps its current values;
+        // sync is naturally inert until they re-check.
+        return;
+      }
+      // User just checked. If billing already mirrors address, sync
+      // silently (e.g. first-time check on an empty/clean form). If
+      // billing has independent edits, confirm before overwriting.
+      if (billingDiffersFromAddress()) {
+        var confirmed = window.confirm(
+          'You are confirming your billing address is the same as your home address, correct?',
+        );
+        if (!confirmed) {
+          // Setting .checked = false programmatically does NOT fire
+          // a change event, so we don't recurse.
+          checkbox.checked = false;
+          return;
+        }
+      }
+      copyAddressToBilling();
+    });
+  }
 
-    function applyState() {
-      var same = checkbox.checked;
-      fieldsWrap.hidden = same;
-      setBillingFieldsRequired(!same);
-    }
+  function wireLiveAddressSync() {
+    var checkbox = $('billingSame');
+    if (!checkbox) return;
+    ADDRESS_BILLING_PAIRS.forEach(function (pair) {
+      var addr = $(pair[0]);
+      if (!addr) return;
+      addr.addEventListener('input', function () {
+        if (!checkbox.checked) return;
+        var bill = $(pair[1]);
+        if (!bill) return;
+        bill.value = addr.value;
+        if (bill.classList.contains('invalid')) clearError(pair[1]);
+      });
+    });
+  }
 
-    checkbox.addEventListener('change', applyState);
-    applyState(); // initial sync (default is checked → hidden + not required)
+  function wireBillingFieldEditDetection() {
+    var checkbox = $('billingSame');
+    if (!checkbox) return;
+    ADDRESS_BILLING_PAIRS.forEach(function (pair) {
+      var bill = $(pair[1]);
+      if (!bill) return;
+      bill.addEventListener('input', function () {
+        // If the box is checked AND a real user input event fires on
+        // a billing field, the user is diverging — auto-uncheck.
+        // Programmatic value writes (the live-sync handler) don't
+        // fire input events, so this only triggers on actual typing.
+        if (checkbox.checked) checkbox.checked = false;
+      });
+    });
   }
 
   // ---------- Per-field validation ----------
@@ -140,6 +212,14 @@
     { id: 'addressCity', label: 'city' },
     { id: 'addressState', label: 'state' },
     { id: 'addressZip', label: 'ZIP code' },
+    // Billing fields are now always visible and always required per
+    // Bucket 2 Component B. When the "same as address" checkbox is
+    // active they auto-populate from address (so validation passes
+    // for free); when it's unchecked the user fills them directly.
+    { id: 'billingLine1', label: 'billing street address' },
+    { id: 'billingCity', label: 'billing city' },
+    { id: 'billingState', label: 'billing state' },
+    { id: 'billingZip', label: 'billing ZIP code' },
   ];
 
   function validateRequiredText(fieldId, label) {
@@ -186,21 +266,6 @@
     return true;
   }
 
-  function validateBillingAddressIfShown() {
-    var checkbox = $('billingSame');
-    if (!checkbox || checkbox.checked) return true; // billing matches address — nothing to check
-    var allValid = true;
-    [
-      { id: 'billingLine1', label: 'billing street address' },
-      { id: 'billingCity', label: 'billing city' },
-      { id: 'billingState', label: 'billing state' },
-      { id: 'billingZip', label: 'billing ZIP code' },
-    ].forEach(function (f) {
-      if (!validateRequiredText(f.id, f.label)) allValid = false;
-    });
-    return allValid;
-  }
-
   function validateAll() {
     var allValid = true;
     REQUIRED_FIELDS.forEach(function (f) {
@@ -208,7 +273,6 @@
     });
     if (!validateEmail()) allValid = false;
     if (!validatePhone()) allValid = false;
-    if (!validateBillingAddressIfShown()) allValid = false;
     return allValid;
   }
 
@@ -235,12 +299,20 @@
     });
 
     wireBillingCheckbox();
+    wireLiveAddressSync();
+    wireBillingFieldEditDetection();
 
     form.addEventListener('submit', function (event) {
       // Always preventDefault — we POST as JSON via fetch(), not as
       // form-encoded. The Lambda parses JSON.
       event.preventDefault();
+      // Nit 1 (Bucket 2 Component C): disable the submit button
+      // BEFORE validation so a rapid double-click can't fire two
+      // simultaneous submissions while validateAll() runs.
+      var submitBtn = $('signupSubmit');
+      if (submitBtn) submitBtn.disabled = true;
       if (!validateAll()) {
+        if (submitBtn) submitBtn.disabled = false;
         var firstInvalid = form.querySelector('.field-input.invalid');
         if (firstInvalid && typeof firstInvalid.focus === 'function') {
           firstInvalid.focus();
@@ -255,7 +327,14 @@
 
   function showBanner(kind, message) {
     var banner = $('signupBanner');
-    if (!banner) return;
+    if (!banner) {
+      // Nit 3 (Bucket 2 Component C): the page should always have
+      // #signupBanner; if it's missing something is wrong with the
+      // markup. Drop a warning so it shows up in the console rather
+      // than silently swallowing the message.
+      console.warn('signupBanner element not found; banner message dropped:', kind, message);
+      return;
+    }
     banner.className = 'signup-banner ' + kind;
     banner.textContent = message;
     banner.hidden = false;
@@ -263,7 +342,10 @@
 
   function hideBanner() {
     var banner = $('signupBanner');
-    if (!banner) return;
+    if (!banner) {
+      console.warn('signupBanner element not found; cannot hide banner');
+      return;
+    }
     banner.hidden = true;
     banner.textContent = '';
   }
@@ -315,12 +397,14 @@
   }
 
   function submitSignup(form) {
+    // Nit 2 (Bucket 2 Component C): build the payload and check
+    // input_hash BEFORE flipping the button to "Submitting…". If the
+    // hash is missing we want a clear inline error, not a transient
+    // "Submitting…" → "error" flicker. The submit listener has
+    // already disabled the button (Nit 1); restore it on early
+    // return.
     var submitBtn = $('signupSubmit');
     var originalText = submitBtn ? submitBtn.textContent : '';
-    if (submitBtn) {
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Submitting…';
-    }
     hideBanner();
 
     var payload = buildSubmissionPayload(form);
@@ -332,6 +416,10 @@
       );
       restoreButton(submitBtn, originalText);
       return;
+    }
+
+    if (submitBtn) {
+      submitBtn.textContent = 'Submitting…';
     }
 
     fetch(form.action, {
