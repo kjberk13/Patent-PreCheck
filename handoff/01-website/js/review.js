@@ -39,6 +39,23 @@
     activeQuestionId: null, // for active_qa
   };
 
+  // Client-side question cache. The engine drops a question from
+  // session_state.questions_remaining as soon as it's answered, but the
+  // Review state still needs each question's text + hint when the user
+  // clicks "Edit" on an old answer. We populate this Map opportunistically
+  // every time the Lambda hands us questions (start, answer, status), so
+  // lookupQuestion can resolve question text without re-fetching.
+  const questionCache = new Map();
+
+  function cacheQuestions(questions) {
+    if (!Array.isArray(questions)) return;
+    for (const q of questions) {
+      if (q && typeof q.id === 'string') {
+        questionCache.set(q.id, q);
+      }
+    }
+  }
+
   // -------------------------------------------------------------------
   // Boot
   // -------------------------------------------------------------------
@@ -83,6 +100,12 @@
   }
 
   function routeFromStatus(body) {
+    // Populate the question cache from any session_state we land on,
+    // so users who arrive mid-session still have question text for
+    // Edit-from-Review.
+    if (body && body.session_state) {
+      cacheQuestions(body.session_state.questions_remaining);
+    }
     const state = body && body.state;
     if (state === 'expired') {
       renderError({ title: 'Session expired', message: 'Your 30-day review window has ended. Your scores are saved, but no further answers can be added.', clearLocal: true });
@@ -128,6 +151,8 @@
         session_state: res.body.session_state,
         state: 'in_progress',
       });
+      cacheQuestions(res.body.next_questions);
+      cacheQuestions(res.body.session_state && res.body.session_state.questions_remaining);
       const first = (res.body.next_questions || [])[0];
       if (!first) {
         renderError({ title: 'No questions available', message: 'Your session is set up but no questions are queued. Please contact support.' });
@@ -410,6 +435,12 @@
     const feedback = res.body.feedback || '';
     const nextQuestion = res.body.next_question;
 
+    // Cache the new questions_remaining and the next_question so they
+    // survive in the cache once the engine drops them (Edit-from-Review
+    // depends on this).
+    cacheQuestions(newSession && newSession.questions_remaining);
+    if (nextQuestion) cacheQuestions([nextQuestion]);
+
     updateScoreBar(newSession, {});
     flashDelta(delta);
     if (fbEl && feedback) {
@@ -640,10 +671,18 @@
   function lookupQuestion(session, questionId) {
     const remaining = session.questions_remaining || [];
     const fromRemaining = remaining.find((q) => q.id === questionId);
-    if (fromRemaining) return fromRemaining;
-    // Fall back to category derivation from id naming convention
-    // (q_<category>_<n>) when the question is no longer in the
-    // remaining list (e.g. it was already answered).
+    if (fromRemaining) {
+      // Cache so that Edit-from-Review still finds it after the engine
+      // drops it from questions_remaining post-answer.
+      questionCache.set(fromRemaining.id, fromRemaining);
+      return fromRemaining;
+    }
+    const cached = questionCache.get(questionId);
+    if (cached) return cached;
+    // Degraded fallback: derive category from the id naming convention
+    // (q_<category>_<n>). Should rarely fire — every question we have
+    // ever shown the user should already be in the cache. Mostly a
+    // safety net for stale links / corrupted state.
     const catMatch = /^q_([a-z_]+?)(?:_\d+)?$/.exec(questionId || '');
     const category = catMatch && PILLAR_BY_CATEGORY[catMatch[1]] ? catMatch[1] : 'problem_framing';
     return { id: questionId, category: category, text: '', hint: '' };
