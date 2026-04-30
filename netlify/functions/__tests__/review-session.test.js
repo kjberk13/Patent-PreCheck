@@ -95,10 +95,17 @@ function asJson(res) {
   return JSON.parse(res.body);
 }
 
-function bypassRow({ session_state = null, completed = false } = {}) {
+function bypassRow({
+  session_state = null,
+  completed = false,
+  created_at,
+  first_name = 'Sample',
+} = {}) {
   return [
     {
       id: 'sig-uuid-1',
+      first_name,
+      created_at: created_at || new Date().toISOString(),
       access_method: 'beta_bypass',
       session_state,
       session_completed_at: completed ? new Date().toISOString() : null,
@@ -111,6 +118,8 @@ function stripeRow() {
   return [
     {
       id: 'sig-uuid-2',
+      first_name: 'Stripe',
+      created_at: new Date().toISOString(),
       access_method: 'stripe_payment',
       session_state: null,
       session_completed_at: null,
@@ -364,4 +373,99 @@ test('status action returns null session_state when start has not been called', 
   assert.equal(res.statusCode, 200);
   const body = asJson(res);
   assert.equal(body.session_state, null);
+});
+
+// ---------------------------------------------------------------------
+// status — state hint, first_name, expiration
+// ---------------------------------------------------------------------
+
+test('status returns first_name and 30-day session_end_date based on signup created_at', async () => {
+  const createdAt = new Date('2026-04-01T00:00:00.000Z').toISOString();
+  neonFake.enqueueRows(
+    bypassRow({ session_state: null, created_at: createdAt, first_name: 'Renee' }),
+  );
+  const res = await handler(postJson({ action: 'status', report_id: 'PPC-status-renee' }));
+  assert.equal(res.statusCode, 200);
+  const body = asJson(res);
+  assert.equal(body.first_name, 'Renee');
+  assert.equal(body.session_started_at, createdAt);
+  assert.equal(body.session_end_date, '2026-05-01T00:00:00.000Z');
+});
+
+test('status state=not_started when session_state is null', async () => {
+  neonFake.enqueueRows(bypassRow({ session_state: null }));
+  const res = await handler(postJson({ action: 'status', report_id: 'PPC-status-1' }));
+  assert.equal(asJson(res).state, 'not_started');
+});
+
+test('status state=in_progress when session has questions remaining and not locked', async () => {
+  const session = {
+    version: 1,
+    locked: false,
+    questions_asked: ['q_problem_framing_1'],
+    questions_remaining: [{ id: 'q_constraints_1', category: 'constraints' }],
+    answers: [],
+    feedback_history: [],
+    categories: { problem_framing: 50, constraints: 0, conception_moment: 0, decision_record: 0 },
+  };
+  neonFake.enqueueRows(bypassRow({ session_state: session }));
+  const res = await handler(postJson({ action: 'status', report_id: 'PPC-status-2' }));
+  assert.equal(asJson(res).state, 'in_progress');
+});
+
+test('status state=ready_to_finalize when no questions remaining and not locked', async () => {
+  const session = {
+    version: 1,
+    locked: false,
+    questions_asked: ['q_a', 'q_b'],
+    questions_remaining: [],
+    answers: [],
+    feedback_history: [],
+    categories: {
+      problem_framing: 80,
+      constraints: 80,
+      conception_moment: 80,
+      decision_record: 80,
+    },
+  };
+  neonFake.enqueueRows(bypassRow({ session_state: session }));
+  const res = await handler(postJson({ action: 'status', report_id: 'PPC-status-3' }));
+  assert.equal(asJson(res).state, 'ready_to_finalize');
+});
+
+test('status state=finalized when session is locked', async () => {
+  const session = {
+    version: 1,
+    locked: true,
+    questions_asked: ['q_a'],
+    questions_remaining: [],
+    answers: [],
+    feedback_history: [],
+    categories: {
+      problem_framing: 80,
+      constraints: 80,
+      conception_moment: 80,
+      decision_record: 80,
+    },
+  };
+  neonFake.enqueueRows(bypassRow({ session_state: session }));
+  const res = await handler(postJson({ action: 'status', report_id: 'PPC-status-4' }));
+  assert.equal(asJson(res).state, 'finalized');
+});
+
+test('status state=expired when 30-day window has elapsed and session not finalized', async () => {
+  const session = {
+    version: 1,
+    locked: false,
+    questions_asked: ['q_a'],
+    questions_remaining: [{ id: 'q_b', category: 'constraints' }],
+    answers: [],
+    feedback_history: [],
+    categories: { problem_framing: 50, constraints: 0, conception_moment: 0, decision_record: 0 },
+  };
+  // created_at 60 days ago
+  const longAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+  neonFake.enqueueRows(bypassRow({ session_state: session, created_at: longAgo }));
+  const res = await handler(postJson({ action: 'status', report_id: 'PPC-status-5' }));
+  assert.equal(asJson(res).state, 'expired');
 });

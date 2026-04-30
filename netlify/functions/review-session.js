@@ -46,6 +46,11 @@ const {
 
 const VALID_ACTIONS = new Set(['start', 'answer', 'finalize', 'status']);
 
+// Mirror of the 30-day Session Window in privacy.html / terms.html.
+// Lives here so the status response can compute session_end_date for
+// the /review.html welcome-back UI without the client guessing.
+const REVIEW_SESSION_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
 // ---------------------------------------------------------------------
 // In-memory rate limiter, per signup_id.
 //
@@ -117,7 +122,7 @@ exports.handler = async function handler(event) {
 
   // Look up the signup row. Every action needs it.
   const signupRows = await sql(
-    `SELECT id, access_method, session_state, session_completed_at, input_hash
+    `SELECT id, first_name, created_at, access_method, session_state, session_completed_at, input_hash
      FROM code_review_signups
      WHERE report_id = $1`,
     [reportId],
@@ -139,7 +144,18 @@ exports.handler = async function handler(event) {
 
   try {
     if (action === 'status') {
-      return respond(200, { report_id: reportId, session_state: signup.session_state || null });
+      const session = signup.session_state || null;
+      const startedAtMs = signup.created_at ? new Date(signup.created_at).getTime() : Date.now();
+      const sessionEndMs = startedAtMs + REVIEW_SESSION_WINDOW_MS;
+      const state = computeStatusState(session, sessionEndMs);
+      return respond(200, {
+        report_id: reportId,
+        session_state: session,
+        state,
+        first_name: signup.first_name || null,
+        session_started_at: new Date(startedAtMs).toISOString(),
+        session_end_date: new Date(sessionEndMs).toISOString(),
+      });
     }
 
     if (action === 'start') {
@@ -255,6 +271,23 @@ async function persistSessionState(sql, signupId, sessionState) {
     JSON.stringify(sessionState),
     signupId,
   ]);
+}
+
+// Render-target hint for /review.html. The page uses this to route to
+// the right state without re-implementing engine semantics:
+//   - not_started        → no session_state row yet (signup but no `start`)
+//   - finalized          → session.locked === true
+//   - expired            → 30-day window elapsed and not finalized
+//   - ready_to_finalize  → no questions_remaining and not locked
+//   - in_progress        → otherwise (default)
+function computeStatusState(session, sessionEndMs, now = Date.now()) {
+  if (!session) return 'not_started';
+  if (session.locked) return 'finalized';
+  if (Number.isFinite(sessionEndMs) && now > sessionEndMs) return 'expired';
+  if (Array.isArray(session.questions_remaining) && session.questions_remaining.length === 0) {
+    return 'ready_to_finalize';
+  }
+  return 'in_progress';
 }
 
 // ---------------------------------------------------------------------
