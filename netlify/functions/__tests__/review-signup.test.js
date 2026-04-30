@@ -36,6 +36,29 @@ require.cache[neonModulePath] = {
   },
 };
 
+// Stub the email sender so the Lambda's fire-and-forget call is
+// observable but never touches Resend.
+const emailFake = {
+  calls: [],
+  reset() {
+    this.calls = [];
+  },
+  send(args) {
+    this.calls.push(args);
+    return Promise.resolve({ success: true, messageId: 'msg_fake' });
+  },
+};
+const emailModulePath = require.resolve('../../../backend/code_review/email_sender.js');
+require.cache[emailModulePath] = {
+  id: emailModulePath,
+  filename: emailModulePath,
+  loaded: true,
+  exports: {
+    sendAccessLinkEmail: (args) => emailFake.send(args),
+    renderEmailHtml: () => '',
+  },
+};
+
 // Required env so buildSqlClient picks something up.
 process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://x:y@localhost:5432/test';
 process.env.BETA_ACCESS_TOKEN = 'TEST-BYPASS-2026';
@@ -83,6 +106,7 @@ function asJson(response) {
 
 test.beforeEach(() => {
   neonFake.reset();
+  emailFake.reset();
 });
 
 test('OPTIONS preflight returns 200 with CORS headers', async () => {
@@ -165,6 +189,23 @@ test('without access_token (or wrong token): 402 payment_required, row still ins
   // as the INSERT statement. Easier check: ensure 'WRONG-TOKEN' is NOT
   // stored when bypass fails.
   assert.ok(!params.includes('WRONG-TOKEN'));
+});
+
+test('successful signup fires the access-link email exactly once with expected args', async () => {
+  const body = validBody({ access_token: process.env.BETA_ACCESS_TOKEN });
+  const res = await handler(postJson(body));
+  assert.equal(res.statusCode, 200);
+  // Email called exactly once — fire-and-forget; not awaited but the
+  // call itself happens synchronously before the response is returned.
+  assert.equal(emailFake.calls.length, 1, 'access-link email fired once');
+  const args = emailFake.calls[0];
+  assert.equal(args.to, 'name@example.com');
+  assert.equal(args.firstName, 'Sample');
+  assert.match(args.reportId, /^PPC-/);
+  // sessionEndDate is an ISO string ~30 days in the future
+  const end = new Date(args.sessionEndDate);
+  const days = (end.getTime() - Date.now()) / (24 * 60 * 60 * 1000);
+  assert.ok(days > 29 && days < 31, `sessionEndDate ~30d out, got ${days}d`);
 });
 
 test('billing fields are auto-copied from address when billing_same_as_address=true', async () => {

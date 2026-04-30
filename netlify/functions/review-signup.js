@@ -51,6 +51,12 @@ const {
   log,
 } = require('../../backend/code_review/review_helpers.js');
 
+const { sendAccessLinkEmail } = require('../../backend/code_review/email_sender.js');
+
+// Active review window for the paid Interactive Code Review session.
+// Mirrors the 30-day promise in privacy.html / terms.html.
+const REVIEW_SESSION_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
 const REQUIRED_BODY_FIELDS = [
   'first_name',
   'last_name',
@@ -211,6 +217,23 @@ exports.handler = async function handler(event) {
     event: 'review_signup_created',
     report_id: reportId,
     access_method: accessMethod,
+  });
+
+  // Fire-and-forget access-link email. Email failure must never break
+  // the signup response — the user is already on the success page;
+  // the email is for re-entry.
+  const sessionEndDate = new Date(Date.now() + REVIEW_SESSION_WINDOW_MS).toISOString();
+  sendAccessLinkEmail({
+    to: body.email,
+    firstName: body.first_name,
+    reportId,
+    sessionEndDate,
+  }).catch((err) => {
+    log('error', {
+      event: 'review_signup_email_failed',
+      report_id: reportId,
+      error: err && err.message ? err.message : String(err),
+    });
   });
 
   if (!isBypass) {
