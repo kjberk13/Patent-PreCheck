@@ -251,7 +251,7 @@ exports.handler = async function handler(event) {
   // Bypass success — frontend redirects into the Q&A flow.
   return respond(200, {
     report_id: reportId,
-    redirect_url: `/analyze.html?review=${encodeURIComponent(reportId)}`,
+    redirect_url: `/review.html?id=${encodeURIComponent(reportId)}`,
     access_method: 'beta_bypass',
   });
 };

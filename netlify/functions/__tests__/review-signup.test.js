@@ -164,7 +164,7 @@ test('with valid access_token matching env: 200 + redirect_url, access_method=be
   const json = asJson(res);
   assert.equal(json.access_method, 'beta_bypass');
   assert.match(json.report_id, /^PPC-\d{4}-\d{2}-\d{2}-[A-Z2-9]{5}$/);
-  assert.match(json.redirect_url, /\/analyze\.html\?review=PPC-/);
+  assert.match(json.redirect_url, /\/review\.html\?id=PPC-/);
   // SQL INSERT was issued
   assert.equal(neonFake.calls.length, 1);
   const params = neonFake.calls[0].params;
