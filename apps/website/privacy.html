@@ -186,6 +186,41 @@ footer a:hover{color:#1D9E75}
   </ul>
   <p>We do not sell your data. We do not use your conversation content for advertising. We do not train AI models on your data.</p>
 
+  <h2>Interactive Code Review &mdash; Paid Tier Data Handling</h2>
+  <p>This section applies specifically to the paid <strong>Interactive Code Review</strong> service. It is separate from the free Patent PreCheck Score, where your uploaded code is analyzed and immediately discarded without ever being stored on our servers.</p>
+
+  <h2 style="font-size:17px;margin-top:24px">What we store during a paid review session</h2>
+  <p>When you purchase and use an Interactive Code Review, we store the following on our servers:</p>
+  <ul>
+    <li>The text of your answers to the interview questions presented during the session</li>
+    <li>Component scores and the aggregate score derived from your answers</li>
+    <li>Session metadata: report ID, purchase timestamp, completion timestamp, session state, and the SHA-256 hash and length of the code you analyzed before upgrading</li>
+  </ul>
+  <p><strong>Note:</strong> Evidence file uploads and final document generation are not yet part of paid Interactive Code Review sessions. This policy will be updated when those features launch.</p>
+
+  <h2 style="font-size:17px;margin-top:24px">Retention for paid review sessions</h2>
+  <ul>
+    <li><strong>Active session window: 30 days from purchase.</strong> During this window, you may answer questions, resume from your email link, and finalize the session.</li>
+    <li><strong>After 30 days:</strong> the text of your answers is permanently deleted. Your scores, completion status, and customer record are retained.</li>
+  </ul>
+
+  <h2 style="font-size:17px;margin-top:24px">What we retain permanently from paid sessions</h2>
+  <ul>
+    <li>Contact information: name, email address, and billing record</li>
+    <li>Report ID and completion timestamp</li>
+    <li>Aggregate score and component scores</li>
+  </ul>
+
+  <h2 style="font-size:17px;margin-top:24px">Encryption and transmission</h2>
+  <p>Paid session content is stored encrypted at rest in our Neon Postgres database. All data is transmitted between your browser and our servers over HTTPS.</p>
+
+  <h2 style="font-size:17px;margin-top:24px">Third-party vendors involved in paid sessions</h2>
+  <ul>
+    <li><strong>Resend</strong> &mdash; transactional email delivery (purchase confirmation, resume link)</li>
+    <li><strong>Anthropic</strong> &mdash; AI scoring of your answers</li>
+    <li><strong>Netlify</strong> &mdash; web hosting</li>
+  </ul>
+
   <h2>Data sharing</h2>
   <p>We do not sell or share your personal data with third parties, except:</p>
   <ul>

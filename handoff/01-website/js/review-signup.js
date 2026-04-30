@@ -434,7 +434,16 @@
       })
       .then(function (response) {
         if (response.status === 200 && response.body && response.body.redirect_url) {
-          // Beta-bypass success — navigate into the Q&A flow.
+          // Beta-bypass success — stash report_id locally so /review.html
+          // can auto-resume even when visited without ?id=…, then
+          // navigate into the Q&A flow.
+          if (response.body.report_id) {
+            try {
+              localStorage.setItem('patent-precheck-active-review', response.body.report_id);
+            } catch (err) {
+              // localStorage can throw in private/incognito modes — non-fatal.
+            }
+          }
           window.location.href = response.body.redirect_url;
           return;
         }

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Code Review — Patent PreCheck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--navy:#0C2340;--blue:#0C447C;--green:#1D9E75;--green-soft:#4DD9A8;--blue-light:#85B7EB;--cream:#FAFAF7;--gray-100:#EBEBEB;--gray-300:#C4C4C0;--gray-500:#858580;--gray-700:#3D3D38;--gray-900:#1A1A16;--serif:'Playfair Display',Georgia,serif;--sans:'DM Sans',system-ui,sans-serif}
+body{font-family:var(--sans);color:var(--gray-900);background:var(--cream);-webkit-font-smoothing:antialiased}
+
+/* NAV — canonical, matches analyze.html */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;gap:0;background:rgba(248,250,255,0.97);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid #E2E8F4;height:68px;padding:0 36px}
+.nav-logo{display:flex;align-items:center;text-decoration:none;flex-shrink:0}
+.nav-links{display:flex;align-items:center;gap:28px;margin-left:32px;flex:1}
+nav a.nav-link{font-size:14px;font-weight:500;color:#2D3748;text-decoration:none;transition:color .15s;white-space:nowrap}
+nav a.nav-link:hover,nav a.nav-link:active{color:#1D9E75}
+nav a.nav-cta{flex-shrink:0;align-self:center;background:#0C2340;color:#fff;padding:10px 22px;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap;transition:background .15s;line-height:1.4}
+nav a.nav-cta:hover{background:#1D9E75;color:#fff}
+
+/* STICKY SCORE BAR */
+.score-bar{position:sticky;top:68px;z-index:50;background:var(--navy);color:#fff;padding:14px 24px 12px;border-bottom:1px solid rgba(255,255,255,.06)}
+.score-bar-inner{max-width:880px;margin:0 auto}
+.score-bar-top{display:flex;align-items:baseline;gap:14px;margin-bottom:10px}
+.score-composite-label{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.5)}
+.score-composite-num{font-family:var(--serif);font-size:28px;font-weight:700;color:#fff;transition:color .25s}
+.score-composite-suffix{font-size:13px;color:rgba(255,255,255,.5);margin-left:-2px}
+.score-delta{display:inline-block;font-size:13px;font-weight:600;color:var(--green-soft);opacity:0;transition:opacity .35s ease;margin-left:6px}
+.score-delta.flash{opacity:1}
+.score-final-tag{margin-left:auto;background:rgba(77,217,168,.15);color:var(--green-soft);font-size:10px;font-weight:700;letter-spacing:.1em;padding:4px 10px;border-radius:999px;text-transform:uppercase}
+.score-bar-categories{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.score-cat{min-width:0}
+.score-cat-label{font-size:10px;font-weight:600;letter-spacing:.06em;color:rgba(255,255,255,.6);text-transform:uppercase;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.score-cat-num{font-size:13px;font-weight:500;color:rgba(255,255,255,.5);transition:color .25s}
+.score-cat-num.has-score{color:var(--blue-light)}
+.score-cat-bar{height:4px;border-radius:2px;background:rgba(255,255,255,.08);margin-top:4px;overflow:hidden}
+.score-cat-bar-fill{height:100%;background:var(--blue-light);width:0;transition:width 400ms ease}
+@media (max-width:760px){.score-bar-categories{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:480px){.score-bar-categories{grid-template-columns:repeat(2,1fr);gap:10px}.score-cat-label{font-size:9px}}
+
+/* APP CONTAINER */
+#app{max-width:760px;margin:0 auto;padding:36px 24px 64px;min-height:60vh}
+
+/* SHARED CARD */
+.card{background:#fff;border:1px solid var(--gray-100);border-radius:14px;padding:32px;margin-bottom:20px;box-shadow:0 1px 2px rgba(15,30,50,.04)}
+.card-eyebrow{font-size:11px;font-weight:700;color:var(--blue);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px}
+.card-h{font-family:var(--serif);font-size:26px;font-weight:700;color:var(--navy);line-height:1.2;margin-bottom:8px}
+.card-sub{font-size:14px;color:var(--gray-500);line-height:1.6;margin-bottom:18px}
+
+/* LOADING / FINALIZING — centered spinner card */
+.spinner-card{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:64px 32px;text-align:center}
+.spinner{width:40px;height:40px;border:3px solid rgba(12,35,64,.12);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:18px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* WELCOME-BACK STATE */
+.up-next{background:#EEF4FF;border-left:3px solid var(--blue);border-radius:0 8px 8px 0;padding:14px 18px;margin:14px 0 22px}
+.up-next-eyebrow{font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--blue);text-transform:uppercase;margin-bottom:6px}
+.up-next-text{font-size:14px;color:var(--gray-700);line-height:1.55}
+.button-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.btn{display:inline-block;border:0;font-family:inherit;font-size:14px;font-weight:600;padding:11px 22px;border-radius:8px;cursor:pointer;text-decoration:none;line-height:1.3;transition:background .15s,color .15s,border-color .15s}
+.btn-primary{background:var(--navy);color:#fff}
+.btn-primary:hover{background:var(--green)}
+.btn-primary:disabled{background:var(--gray-300);cursor:not-allowed;opacity:.7}
+.btn-secondary{background:#fff;color:var(--navy);border:1px solid var(--gray-100)}
+.btn-secondary:hover{border-color:var(--navy)}
+.btn-link{background:transparent;color:var(--blue);padding:8px 0;font-size:14px;font-weight:500}
+.btn-link:hover{color:var(--green);text-decoration:underline}
+
+/* ACTIVE Q&A */
+.q-eyebrow{font-size:11px;font-weight:700;color:var(--blue);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px}
+.q-text{font-size:16px;font-weight:500;color:var(--gray-900);line-height:1.55;margin-bottom:8px}
+.q-hint{font-size:13px;font-style:italic;color:var(--gray-500);line-height:1.55;margin-bottom:18px}
+.q-textarea{display:block;width:100%;min-height:120px;font-family:inherit;font-size:14px;color:var(--gray-900);padding:12px 14px;border:1px solid var(--gray-100);border-radius:8px;background:#fff;resize:vertical;line-height:1.55;transition:border-color .15s}
+.q-textarea:focus{outline:0;border-color:var(--blue)}
+.q-feedback{display:none;background:#F4F8FF;border-left:3px solid var(--green);border-radius:0 8px 8px 0;padding:12px 16px;margin:14px 0 0;font-size:14px;color:var(--gray-700);line-height:1.55}
+.q-feedback.shown{display:block}
+.q-error{display:none;background:#FFF5F5;border-left:3px solid #EF4444;border-radius:0 8px 8px 0;padding:10px 14px;margin:12px 0 0;font-size:13px;color:#B91C1C}
+.q-error.shown{display:block}
+.q-footer{display:flex;align-items:center;justify-content:space-between;margin-top:18px;gap:12px;flex-wrap:wrap}
+
+/* REVIEW STATE */
+.review-list{display:flex;flex-direction:column;gap:10px;margin:16px 0 22px}
+.review-item{display:flex;gap:14px;align-items:flex-start;padding:14px 16px;border:1px solid var(--gray-100);border-radius:10px;background:#fff}
+.review-item-body{flex:1;min-width:0}
+.review-item-eyebrow{font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--blue);text-transform:uppercase;margin-bottom:4px}
+.review-item-q{font-size:13px;color:var(--gray-500);line-height:1.5;margin-bottom:6px}
+.review-item-a{font-size:14px;color:var(--gray-900);line-height:1.55;white-space:pre-wrap;word-break:break-word}
+.review-item-edit{flex-shrink:0;color:var(--blue);font-size:13px;font-weight:600;text-decoration:none}
+.review-item-edit:hover{color:var(--green);text-decoration:underline}
+.review-show-more{background:transparent;border:0;color:var(--blue);font-size:13px;font-weight:500;cursor:pointer;padding:6px 0}
+.review-show-more:hover{text-decoration:underline}
+.review-banner{background:#EEF4FF;border-left:3px solid var(--blue);border-radius:0 8px 8px 0;padding:14px 18px;margin:18px 0;font-size:14px;color:var(--gray-700);line-height:1.55}
+
+/* FINAL SCORECARD */
+.scorecard-hero{background:var(--navy);color:#fff;border-radius:14px;padding:40px 32px;text-align:center;margin-bottom:20px}
+.scorecard-eyebrow{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--green-soft);text-transform:uppercase;margin-bottom:14px}
+.scorecard-h{font-family:var(--serif);font-size:30px;font-weight:700;color:#fff;line-height:1.2;margin-bottom:24px}
+.scorecard-ring{display:inline-flex;align-items:center;justify-content:center;width:80px;height:80px;border-radius:50%;border:6px solid rgba(255,255,255,.18);font-family:var(--serif);font-size:30px;font-weight:700;color:#fff;margin:0 auto 14px}
+.scorecard-ring.band-not_ready{border-color:#EF6262}
+.scorecard-ring.band-building{border-color:#F2B43E}
+.scorecard-ring.band-close_to_ready{border-color:var(--green-soft)}
+.scorecard-ring.band-file_ready{border-color:var(--green)}
+.scorecard-band{font-size:14px;color:rgba(255,255,255,.85);margin-bottom:8px}
+.scorecard-msg{font-size:13px;color:rgba(255,255,255,.65);max-width:440px;margin:8px auto 0;line-height:1.55}
+.scorecard-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin:18px 0}
+.scorecard-cat{background:#fff;border:1px solid var(--gray-100);border-radius:10px;padding:14px 16px}
+.scorecard-cat-label{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--gray-500);text-transform:uppercase;margin-bottom:6px}
+.scorecard-cat-num{font-family:var(--serif);font-size:24px;font-weight:700;color:var(--navy);margin-bottom:6px}
+.scorecard-cat-bar{height:4px;border-radius:2px;background:var(--gray-100);overflow:hidden}
+.scorecard-cat-bar-fill{height:100%;background:var(--blue);transition:width 400ms ease}
+.scorecard-action-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px}
+.scorecard-tooltip{font-size:12px;color:var(--gray-500);font-style:italic}
+.scorecard-all-answers{display:none;margin-top:18px}
+.scorecard-all-answers.shown{display:block}
+
+/* ERROR */
+.error-icon{width:44px;height:44px;border-radius:50%;background:#FEE2E2;color:#B91C1C;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;margin:0 auto 18px}
+
+/* TRUST BANNER */
+.trust-banner{max-width:760px;margin:6px auto 24px;padding:0 24px;font-size:12px;color:var(--gray-500);text-align:center;line-height:1.6}
+.trust-banner a{color:var(--blue);text-decoration:none}
+.trust-banner a:hover{text-decoration:underline}
+
+footer{background:#0C2340;padding:48px 40px 32px;text-align:center}
+footer p{font-size:13px;color:rgba(255,255,255,.4)}
+footer a{color:rgba(255,255,255,.55);text-decoration:none;margin:0 10px}
+footer a:hover{color:#1D9E75}
+
+@media (max-width:640px){
+  nav{padding:0 18px}
+  .nav-links{display:none}
+  #app{padding:24px 16px 48px}
+  .card{padding:22px;border-radius:12px}
+  .card-h{font-size:22px}
+  .scorecard-grid{grid-template-columns:1fr}
+}
+</style>
+  <link rel="stylesheet" href="mobile.css">
+  <script src="nav.js" defer></script>
+</head>
+<body style="padding-top:68px">
+<nav>
+  <a href="index.html" class="nav-logo">
+    <svg height="44" viewBox="0 0 214 44" xmlns="http://www.w3.org/2000/svg">
+      <rect width="44" height="44" rx="8" fill="#0C447C"/>
+      <line x1="22" y1="15" x2="16" y2="15" stroke="rgba(255,255,255,.62)" stroke-width="1.1"/>
+      <line x1="22" y1="15" x2="28" y2="16" stroke="rgba(255,255,255,.62)" stroke-width="1.1"/>
+      <line x1="28" y1="16" x2="32" y2="21" stroke="rgba(255,255,255,.62)" stroke-width="1.1"/>
+      <line x1="16" y1="15" x2="16" y2="27" stroke="rgba(255,255,255,.62)" stroke-width="1.1"/>
+      <line x1="12" y1="21" x2="22" y2="15" stroke="rgba(255,255,255,.48)" stroke-width="1.1"/>
+      <line x1="16" y1="15" x2="12" y2="21" stroke="rgba(29,158,117,.5)" stroke-width="1.1"/>
+      <line x1="12" y1="21" x2="16" y2="27" stroke="#1D9E75" stroke-width="2.6" stroke-linecap="round"/>
+      <line x1="16" y1="27" x2="28" y2="16" stroke="#1D9E75" stroke-width="2.6" stroke-linecap="round"/>
+      <circle cx="12" cy="21" r="2.7" fill="#1D9E75"/>
+      <circle cx="16" cy="27" r="3.4" fill="#1D9E75"/>
+      <circle cx="28" cy="16" r="2.7" fill="#1D9E75"/>
+      <text x="56" y="27" font-family="'Playfair Display',Georgia,serif" font-size="19" font-weight="700" fill="#0C2340">Patent PreCheck<tspan font-size="10" dy="-7">&#8482;</tspan></text>
+    </svg>
+  </a>
+  <div class="nav-links">
+    <a href="platform.html" class="nav-link">The Platform</a>
+    <a href="index.html#pricing" class="nav-link">Pricing</a>
+    <a href="legal-intelligence.html" class="nav-link">Legal Intelligence</a>
+    <a href="attorneys.html" class="nav-link">Find an Attorney</a>
+  </div>
+  <a href="analyze.html" class="nav-cta">Check My Work &rarr;</a>
+</nav>
+
+<div class="score-bar" id="scoreBar" hidden>
+  <div class="score-bar-inner">
+    <div class="score-bar-top">
+      <div>
+        <div class="score-composite-label">Human Conception Strength</div>
+        <span class="score-composite-num" id="scoreComposite">0</span><span class="score-composite-suffix">/100</span>
+        <span class="score-delta" id="scoreDelta"></span>
+      </div>
+      <div class="score-final-tag" id="scoreFinalTag" hidden>FINAL · LOCKED</div>
+    </div>
+    <div class="score-bar-categories">
+      <div class="score-cat" data-cat="problem_framing">
+        <div class="score-cat-label">Problem framing</div>
+        <div class="score-cat-num">0</div>
+        <div class="score-cat-bar"><div class="score-cat-bar-fill"></div></div>
+      </div>
+      <div class="score-cat" data-cat="constraints">
+        <div class="score-cat-label">Constraints</div>
+        <div class="score-cat-num">0</div>
+        <div class="score-cat-bar"><div class="score-cat-bar-fill"></div></div>
+      </div>
+      <div class="score-cat" data-cat="conception_moment">
+        <div class="score-cat-label">Conception moment</div>
+        <div class="score-cat-num">0</div>
+        <div class="score-cat-bar"><div class="score-cat-bar-fill"></div></div>
+      </div>
+      <div class="score-cat" data-cat="decision_record">
+        <div class="score-cat-label">Decision record</div>
+        <div class="score-cat-num">0</div>
+        <div class="score-cat-bar"><div class="score-cat-bar-fill"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<main id="app" aria-live="polite">
+  <div class="card spinner-card">
+    <div class="spinner" aria-hidden="true"></div>
+    <div class="card-h" style="font-size:20px">Loading your review...</div>
+  </div>
+</main>
+
+<p class="trust-banner">Your answers and scores are stored securely for your 30-day session window and are deleted afterward. See our <a href="/privacy.html">privacy policy</a> for details.</p>
+
+<footer>
+  <div style="text-align:center;padding:0 0 24px">
+    <svg height="32" viewBox="0 0 160 32" xmlns="http://www.w3.org/2000/svg">
+      <rect width="32" height="32" rx="5" fill="#0C447C"/>
+      <line x1="16" y1="10" x2="11" y2="10" stroke="rgba(255,255,255,.62)" stroke-width="1"/>
+      <line x1="16" y1="10" x2="21" y2="11" stroke="rgba(255,255,255,.62)" stroke-width="1"/>
+      <line x1="8" y1="15" x2="16" y2="10" stroke="rgba(255,255,255,.45)" stroke-width="1"/>
+      <line x1="8" y1="15" x2="11" y2="20" stroke="#1D9E75" stroke-width="2" stroke-linecap="round"/>
+      <line x1="11" y1="20" x2="21" y2="11" stroke="#1D9E75" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="8" cy="15" r="2" fill="#1D9E75"/>
+      <circle cx="11" cy="20" r="2.5" fill="#1D9E75"/>
+      <circle cx="21" cy="11" r="2" fill="#1D9E75"/>
+      <text x="42" y="19" font-family="'Playfair Display',Georgia,serif" font-size="14" font-weight="700" fill="white">Patent PreCheck<tspan font-size="8" dy="-5">&#8482;</tspan></text>
+    </svg>
+  </div>
+  <p style="margin-bottom:12px">
+    <a href="platform.html">The Platform</a>
+    <a href="index.html#pricing">Pricing</a>
+    <a href="legal-intelligence.html">Legal Intelligence</a>
+    <a href="attorneys.html">Find an Attorney</a>
+    <a href="filing.html">Assisted Filing</a>
+    <a href="notebook.html">Inventor&#39;s Notebook</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="terms.html">Terms</a>
+  </p>
+  <p>&copy; 2026 Patent PreCheck&trade;. All rights reserved.</p>
+</footer>
+
+<script src="js/review.js"></script>
+</body>
+</html>
