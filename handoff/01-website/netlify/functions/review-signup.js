@@ -218,10 +218,22 @@ exports.handler = async function handler(event) {
     report_id: reportId,
     access_method: accessMethod,
   });
+  if (!isBypass) {
+    // Capture the row but return 402 — the client renders a "Payment
+    // coming soon" message. When Stripe wires in Phase 4, this branch
+    // becomes the redirect to Stripe checkout.
+    return respond(402, {
+      report_id: reportId,
+      payment_required: true,
+      message:
+        'Stripe payment integration is coming soon. We have your details on file — we will contact you when paid signups open.',
+    });
+  }
 
-  // Fire-and-forget access-link email. Email failure must never break
-  // the signup response — the user is already on the success page;
-  // the email is for re-entry.
+  // Fire-and-forget access-link email — only on bypass success
+  // (when the Q&A session is actually live). Email failure must
+  // never break the signup response — the user is already on the
+  // success page; the email is for re-entry.
   const sessionEndDate = new Date(Date.now() + REVIEW_SESSION_WINDOW_MS).toISOString();
   sendAccessLinkEmail({
     to: body.email,
@@ -235,19 +247,7 @@ exports.handler = async function handler(event) {
       error: err && err.message ? err.message : String(err),
     });
   });
-
-  if (!isBypass) {
-    // Capture the row but return 402 — the client renders a "Payment
-    // coming soon" message. When Stripe wires in Phase 4, this branch
-    // becomes the redirect to Stripe checkout.
-    return respond(402, {
-      report_id: reportId,
-      payment_required: true,
-      message:
-        'Stripe payment integration is coming soon. We have your details on file — we will contact you when paid signups open.',
-    });
-  }
-
+  
   // Bypass success — frontend redirects into the Q&A flow.
   return respond(200, {
     report_id: reportId,
