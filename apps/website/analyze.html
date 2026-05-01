@@ -103,6 +103,15 @@
     .demo-banner{background:rgba(239,159,39,.08);border:1px solid rgba(239,159,39,.25);border-radius:10px;
       padding:10px 16px;margin-bottom:18px;display:flex;align-items:center;gap:10px;font-size:13px;color:#B7791F;line-height:1.5}
     .demo-banner strong{color:#744210;font-weight:600}
+    .demo-banner code{background:rgba(239,159,39,.18);padding:1px 6px;border-radius:4px;font-family:monospace;font-size:12px}
+    .gate-failure{background:#fff;border:1px solid var(--border);border-radius:14px;padding:28px 28px 26px;margin-bottom:22px;box-shadow:0 1px 2px rgba(15,30,50,.04)}
+    .gate-failure-status{display:inline-block;background:rgba(226,75,74,.08);color:#B23430;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:5px 11px;border-radius:999px;margin-bottom:14px;border:1px solid rgba(226,75,74,.22)}
+    .gate-failure-h{font-family:var(--serif);font-size:24px;font-weight:700;color:var(--navy);line-height:1.25;margin-bottom:12px}
+    .gate-failure-reason{font-size:15px;color:#2D3748;line-height:1.65;margin-bottom:14px}
+    .gate-failure-body{font-size:14px;color:#4A5568;line-height:1.65;margin-bottom:14px}
+    .gate-failure-foot{font-size:13px;color:#718096;font-style:italic;line-height:1.6;margin-bottom:18px}
+    .gate-failure .btn-retry-input{display:inline-block;background:var(--navy);color:#fff;border:0;padding:11px 22px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s}
+    .gate-failure .btn-retry-input:hover{background:#1D9E75}
     .res-meta{display:flex;align-items:baseline;flex-wrap:wrap;gap:10px;margin-bottom:18px;font-size:12px;color:#718096}
     .res-meta-title{font-family:var(--serif);font-size:20px;color:var(--navy);font-weight:700}
     .res-meta-id{font-family:monospace;font-size:11px}
@@ -387,6 +396,10 @@
 
 <div id="results">
 
+  <div class="demo-banner" id="demoBanner" hidden>
+    <div><strong>Designer preview</strong> &mdash; these are demo scores, not real analysis. Remove <code>?demo=1</code> from the URL to see real results.</div>
+  </div>
+
   <div class="res-meta">
     <span class="res-meta-title" id="resTitle">Your project</span>
     <span>·</span>
@@ -394,6 +407,17 @@
     <span>·</span>
     <span class="res-meta-id" id="resReportId">Report ID: PPC-2026-04-19-DEMO0</span>
   </div>
+
+  <div class="gate-failure" id="gateFailurePanel" hidden>
+    <div class="gate-failure-status">Not patentable subject matter</div>
+    <h2 class="gate-failure-h">This content doesn&rsquo;t fit a patentable category</h2>
+    <p class="gate-failure-reason" id="gateFailureReason"></p>
+    <p class="gate-failure-body">Patent law requires the content to fit one of four categories: a <strong>process</strong> (method or algorithm), a <strong>machine</strong> (device with parts), a <strong>manufacture</strong> (article from raw materials), or a <strong>composition</strong> (chemical or compound). Try pasting actual code or a technical description of your invention.</p>
+    <p class="gate-failure-foot">Was this analyzed in error? You can provide a more complete description and try again.</p>
+    <button type="button" class="btn-retry-input" onclick="resetPage()">Try a different input</button>
+  </div>
+
+  <div id="scoringPanel">
 
   <div class="res-scorecard">
     <div class="res-scores">
@@ -458,6 +482,8 @@
     <button class="btn-report" id="upgradeToReviewBtn">Upgrade to full Interactive Code Review &mdash; $69.95</button>
     <div class="report-note">One-time &middot; 30-day interactive window &middot; No subscription</div>
   </div>
+
+  </div><!-- /#scoringPanel -->
 
   <div class="privacy-banner">
     <div class="privacy-ico">
@@ -663,15 +689,73 @@ const DEMO_DATA={
   ]
 };
 
+// Router for the four real outcomes from the analyze Lambda.
+// DEMO_DATA never silently overrides real output — designers can opt
+// into it explicitly with ?demo=1.
 function showResults(engineData){
   $('loadingState').classList.remove('visible');
+
+  const isDemoMode = new URLSearchParams(window.location.search).get('demo') === '1';
+  if (isDemoMode) {
+    enterResultsView();
+    renderScoresPanel(DEMO_DATA, /* showDemoBanner */ true);
+    return;
+  }
+  if (!engineData) {
+    showAnalyzeError('Analysis failed. Please try again in a moment.');
+    return;
+  }
+  if (engineData.gate_passed === false) {
+    enterResultsView();
+    renderGateFailurePanel(engineData);
+    return;
+  }
+  if (engineData.patentability_score != null) {
+    enterResultsView();
+    renderScoresPanel(engineData, /* showDemoBanner */ false);
+    return;
+  }
+  // Defensive — unexpected response shape.
+  showAnalyzeError('Analysis returned an unexpected response. Please try again.');
+}
+
+function enterResultsView(){
   $('analyzeBtn').style.display='block';
   $('submitNote').style.display='block';
   $('uploadSection').style.display='none';
   $('results').style.display='block';
   window.scrollTo({top:0,behavior:'smooth'});
+}
 
-  const d=(engineData&&engineData.patentability_score!=null)?engineData:DEMO_DATA;
+function showAnalyzeError(msg){
+  // Stay on the upload section so the in-place errorBox is visible.
+  $('errorMsg').textContent = msg || 'Analysis failed. Please try again.';
+  $('errorBox').classList.add('visible');
+  $('analyzeBtn').style.display='block';
+  $('analyzeBtn').disabled=false;
+  $('analyzeBtn').textContent='Get my free score →';
+  $('submitNote').style.display='block';
+}
+
+function renderGateFailurePanel(engineData){
+  $('demoBanner').hidden = true;
+  $('gateFailurePanel').hidden = false;
+  $('scoringPanel').hidden = true;
+
+  $('resTitle').textContent = fname || 'Your project';
+  $('resTimestamp').textContent = 'Analyzed ' + fmtTime();
+  $('resReportId').textContent = 'Report ID: ' + reportId();
+
+  const reason = (engineData && engineData.gate_reason)
+    ? engineData.gate_reason
+    : 'The submitted content does not fit a patentable subject matter category.';
+  $('gateFailureReason').textContent = reason;
+}
+
+function renderScoresPanel(d, showDemoBanner){
+  $('demoBanner').hidden = !showDemoBanner;
+  $('gateFailurePanel').hidden = true;
+  $('scoringPanel').hidden = false;
 
   $('resTitle').textContent=fname||'Your project';
   $('resTimestamp').textContent='Analyzed '+fmtTime();
@@ -765,18 +849,38 @@ $('analyzeBtn').addEventListener('click', async()=>{
   $('errorBox').classList.remove('visible');
   const t=animSteps();
   let data=null;
+  let errorMsg=null;
   try{
     const r=await fetch('/.netlify/functions/analyze',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({code:content,filename:fname})
     });
-    if(r.ok){data=await r.json();}
-  }catch(err){}
+    if(r.ok){
+      data=await r.json();
+    } else {
+      // Surface the server-side error when present; otherwise fall
+      // back to the status code so the user knows the request reached
+      // the server.
+      let serverMsg=null;
+      try { const errBody=await r.json(); serverMsg=errBody&&errBody.error; } catch(_e){}
+      errorMsg = serverMsg || ('Analysis service returned ' + r.status + '. Please try again in a moment.');
+    }
+  }catch(err){
+    // Network drop, DNS failure, fetch threw. Don't swallow silently —
+    // log for diagnostics and surface a friendly error.
+    console.warn('analyze fetch failed:', err);
+    errorMsg = 'Could not reach the analysis service. Please check your connection and try again.';
+  }
   clearInterval(t);
   ['ls1','ls2','ls3','ls4','ls5'].forEach(id=>$(id).className='lstep done');
   await new Promise(r2=>setTimeout(r2,400));
-  showResults(data);
+  if (errorMsg) {
+    $('loadingState').classList.remove('visible');
+    showAnalyzeError(errorMsg);
+  } else {
+    showResults(data);
+  }
 });
 
 // SHA-256 hex helper using SubtleCrypto (HTTPS / secure context required)
