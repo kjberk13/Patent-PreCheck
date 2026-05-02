@@ -239,3 +239,105 @@ test('billing fields are auto-copied from address when billing_same_as_address=t
   assert.equal(stateCount, 2, 'state used in both address and billing');
   assert.equal(zipCount, 2, 'zip used in both address and billing');
 });
+
+// ---------------------------------------------------------------------
+// PR-B: paste_input validation + log redaction
+// ---------------------------------------------------------------------
+
+test('valid POST persists paste_input in the INSERT params', async () => {
+  const body = validBody({
+    access_token: process.env.BETA_ACCESS_TOKEN,
+    paste_input: 'function specificMarker() { return 42; }',
+  });
+  const res = await handler(postJson(body));
+  assert.equal(res.statusCode, 200);
+  assert.equal(neonFake.calls.length, 1);
+  const params = neonFake.calls[0].params;
+  assert.ok(
+    params.includes('function specificMarker() { return 42; }'),
+    'paste_input value present in INSERT params',
+  );
+});
+
+test('missing paste_input returns 400 with error=paste_input_invalid', async () => {
+  const body = validBody();
+  delete body.paste_input;
+  const res = await handler(postJson(body));
+  assert.equal(res.statusCode, 400);
+  const json = asJson(res);
+  assert.equal(json.error, 'paste_input_invalid');
+  assert.match(json.detail, /string/);
+});
+
+test('paste_input shorter than 20 chars returns 400 with paste_input_invalid', async () => {
+  const res = await handler(postJson(validBody({ paste_input: 'x'.repeat(19) })));
+  assert.equal(res.statusCode, 400);
+  const json = asJson(res);
+  assert.equal(json.error, 'paste_input_invalid');
+  assert.match(json.detail, /at least 20/);
+});
+
+test('paste_input longer than 30000 chars returns 400 with paste_input_invalid', async () => {
+  const res = await handler(postJson(validBody({ paste_input: 'x'.repeat(30001) })));
+  assert.equal(res.statusCode, 400);
+  const json = asJson(res);
+  assert.equal(json.error, 'paste_input_invalid');
+  assert.match(json.detail, /at most 30000/);
+});
+
+test('paste_input non-string returns 400 with paste_input_invalid', async () => {
+  const res = await handler(postJson(validBody({ paste_input: 12345 })));
+  assert.equal(res.statusCode, 400);
+  const json = asJson(res);
+  assert.equal(json.error, 'paste_input_invalid');
+  assert.match(json.detail, /string/);
+});
+
+test('log output redacts paste_input content; emits length + sha256 fingerprint', async () => {
+  const SECRET_MARKER = 'TOP_SECRET_INVENTION_DO_NOT_LEAK_42';
+  const padded = SECRET_MARKER + ' '.repeat(50); // ensure >= 20 chars
+  const captured = [];
+  const origLog = console.log;
+  const origErr = console.error;
+  console.log = (line) => captured.push(String(line));
+  console.error = (line) => captured.push(String(line));
+  try {
+    const res = await handler(
+      postJson(validBody({
+        access_token: process.env.BETA_ACCESS_TOKEN,
+        paste_input: padded,
+      })),
+    );
+    assert.equal(res.statusCode, 200);
+  } finally {
+    console.log = origLog;
+    console.error = origErr;
+  }
+  const joined = captured.join('\n');
+  // Content must NEVER appear in any log line.
+  assert.ok(
+    !joined.includes(SECRET_MARKER),
+    'paste_input content must not appear in log output',
+  );
+  // Length and SHA-256 fingerprint must appear.
+  const expectedSha = require('node:crypto').createHash('sha256').update(padded).digest('hex');
+  assert.ok(joined.includes('"paste_input_length":' + padded.length), 'paste_input_length logged');
+  assert.ok(joined.includes('"paste_input_sha256":"' + expectedSha + '"'), 'paste_input_sha256 logged');
+});
+
+// ---------------------------------------------------------------------
+// PR-B: frontend smoke — review-signup.html renders the new fieldset
+// ---------------------------------------------------------------------
+
+test('review-signup.html renders #codeAttachmentGroup markup', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const html = fs.readFileSync(
+    path.resolve(__dirname, '../../../apps/website/review-signup.html'),
+    'utf8',
+  );
+  assert.ok(html.includes('id="codeAttachmentGroup"'), 'fieldset id present');
+  assert.ok(html.includes('id="codeAttachmentToggle"'), 'toggle button id present');
+  assert.ok(html.includes('id="reviewPasteInput"'), 'textarea id present');
+  assert.ok(html.includes('name="paste_input"'), 'textarea name=paste_input present');
+});
