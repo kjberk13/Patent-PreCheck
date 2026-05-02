@@ -13,14 +13,19 @@
 //
 // CRITICAL data rule (per FEATURES_STATE.md + PRIVACY_TERMS.md):
 //   - We receive `input_hash` (SHA-256, hex) and `input_length` from
-//     the client — NEVER the raw code/invention text
+//     the client as the analyze-time fingerprint
+//   - PR-B: we ALSO receive `paste_input` — the live content the user
+//     wants reviewed. Persisted to code_review_signups.paste_input
+//     (migration 005). NEVER logged; only its length + SHA-256
+//     fingerprint appear in log lines.
 //   - input_hash is REQUIRED at signup time. If missing, return 400.
 //
 // Required body fields:
 //   first_name, last_name, email, phone,
 //   address_line1, address_city, address_state, address_zip,
 //   billing_same_as_address (bool),
-//   input_hash (SHA-256 hex, 64 chars), input_length (int)
+//   input_hash (SHA-256 hex, 64 chars), input_length (int),
+//   paste_input (string, 20..30000 chars)
 //
 // Optional body fields:
 //   business_name, address_line2, access_token,
@@ -39,6 +44,8 @@
 // review-session.js. Successful signup gives the client a redirect_url
 // the frontend (Commit 3) uses to bootstrap into the Q&A.
 // =====================================================================
+
+const crypto = require('node:crypto');
 
 const {
   generateReportId,
@@ -75,7 +82,20 @@ const REQUIRED_BODY_FIELDS = [
 // passes a wildly out-of-range value it's almost certainly a mistake.
 const MAX_INPUT_LENGTH = 1_000_000;
 
+// PR-B: paste_input bounds. Mirrors the textarea maxlength=30000 and
+// the spec's >=20 minimum.
+const PASTE_INPUT_MIN_LENGTH = 20;
+const PASTE_INPUT_MAX_LENGTH = 30_000;
+
 const SHA256_HEX_RE = /^[a-f0-9]{64}$/i;
+
+function paste_input_invalid(detail) {
+  return respond(400, { error: 'paste_input_invalid', detail });
+}
+
+function sha256HexNode(value) {
+  return crypto.createHash('sha256').update(value, 'utf8').digest('hex');
+}
 
 exports.handler = async function handler(event) {
   if (event.httpMethod === 'OPTIONS') {
@@ -109,6 +129,22 @@ exports.handler = async function handler(event) {
       error: `input_length must be a positive integer ≤ ${MAX_INPUT_LENGTH}`,
     });
   }
+
+  // PR-B: paste_input is the live invention text, separate from the
+  // analyze-time input_hash fingerprint. Validate without ever logging
+  // the content; only length + SHA-256 fingerprint appear in logs.
+  const pasteInput = body.paste_input;
+  if (typeof pasteInput !== 'string') {
+    return paste_input_invalid('paste_input must be a string');
+  }
+  if (pasteInput.length < PASTE_INPUT_MIN_LENGTH) {
+    return paste_input_invalid(`paste_input must be at least ${PASTE_INPUT_MIN_LENGTH} characters`);
+  }
+  if (pasteInput.length > PASTE_INPUT_MAX_LENGTH) {
+    return paste_input_invalid(`paste_input must be at most ${PASTE_INPUT_MAX_LENGTH} characters`);
+  }
+  const pasteInputSha256 = sha256HexNode(pasteInput);
+  const pasteInputLength = pasteInput.length;
 
   // Validate billing fields conditionally on the toggle. If
   // billing_same_as_address is false, the four core billing fields
@@ -156,7 +192,8 @@ exports.handler = async function handler(event) {
         access_method, access_token_used,
         input_hash, input_length, report_id,
         session_state,
-        created_ip, user_agent
+        created_ip, user_agent,
+        paste_input
       ) VALUES (
         $1, $2, $3, $4, $5,
         $6, $7, $8, $9, $10, $11,
@@ -165,7 +202,8 @@ exports.handler = async function handler(event) {
         $19, $20,
         $21, $22, $23,
         $24,
-        $25, $26
+        $25, $26,
+        $27
       )`,
       [
         body.first_name,
@@ -200,6 +238,7 @@ exports.handler = async function handler(event) {
         null,
         xff || null,
         userAgent || null,
+        pasteInput,
       ],
     );
   } catch (err) {
@@ -217,6 +256,8 @@ exports.handler = async function handler(event) {
     event: 'review_signup_created',
     report_id: reportId,
     access_method: accessMethod,
+    paste_input_length: pasteInputLength,
+    paste_input_sha256: pasteInputSha256,
   });
   if (!isBypass) {
     // Capture the row but return 402 — the client renders a "Payment

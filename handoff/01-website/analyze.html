@@ -345,7 +345,7 @@
         <code id="hashValue"></code>
       </div>
       <div class="trust-row">
-        <div class="trust-pill"><strong>Your code stays with you</strong>Analyzed this session only. Close the window — it's gone. We never store your code.</div>
+        <div class="trust-pill"><strong>Your code stays in this browser.</strong>Analyzed this session only. If you upgrade to the Interactive Code Review, your code stays in this browser tab until your review begins, then it's deleted. We never store your code on our servers from the free check.</div>
         <div class="trust-pill"><strong>What we keep</strong>Your score and risk profile only (domain, §101 level, AI contribution level). Used to alert you if the law changes.</div>
       </div>
       <div class="loading-state" id="loadingState">
@@ -492,7 +492,7 @@
         <path d="M2.5 6L5 8.5L9.5 4" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </div>
-    <div class="privacy-text"><strong>Your code has been deleted.</strong> We never store your uploaded code. Only your score and project metadata are kept.</div>
+    <div class="privacy-text"><strong>Your code stays in this browser.</strong> We never store your uploaded code on our servers. Only your score and project metadata are kept.</div>
   </div>
 
   <div class="res-actions">
@@ -893,14 +893,21 @@ async function sha256Hex(text) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// Upgrade CTA — write input_hash to sessionStorage, then preserve any ?access= URL param when navigating to signup
+// Upgrade CTA — stash code + hash to sessionStorage so review-signup.html
+// can prefill the carry-forward textarea, then preserve any ?access= URL
+// param when navigating to signup.
 const upgradeBtn = $('upgradeToReviewBtn');
 if (upgradeBtn) {
   upgradeBtn.addEventListener('click', async () => {
     if (content && content.length > 0) {
       try {
         const hash = await sha256Hex(content);
-        sessionStorage.setItem('patent-precheck-review-input', JSON.stringify({hash, length: content.length}));
+        sessionStorage.setItem('patent-precheck-review-input', JSON.stringify({
+          content: content,
+          length: content.length,
+          hash: hash,
+          ts: Date.now(),
+        }));
       } catch (err) {
         // Hashing failed (e.g., insecure context) — fall through to navigation without sessionStorage write
       }
