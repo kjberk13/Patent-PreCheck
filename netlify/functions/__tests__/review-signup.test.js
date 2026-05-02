@@ -72,6 +72,11 @@ const { handler } = require('../review-signup.js');
 
 const VALID_HASH = 'a'.repeat(64); // 64 hex chars
 
+// 50-char placeholder paste_input — comfortably above the 20-char minimum
+// the Lambda enforces (PR-B). Tests that target paste_input edge cases
+// override this explicitly.
+const VALID_PASTE_INPUT = 'function add(a, b) { return a + b; } // sample';
+
 function validBody(overrides = {}) {
   return {
     first_name: 'Sample',
@@ -88,6 +93,7 @@ function validBody(overrides = {}) {
     billing_same_as_address: true,
     input_hash: VALID_HASH,
     input_length: 1234,
+    paste_input: VALID_PASTE_INPUT,
     ...overrides,
   };
 }
