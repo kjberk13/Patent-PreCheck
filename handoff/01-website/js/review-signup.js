@@ -268,6 +268,7 @@
 
   function validateAll() {
     var allValid = true;
+    if (!validatePasteInput()) allValid = false;
     REQUIRED_FIELDS.forEach(function (f) {
       if (!validateRequiredText(f.id, f.label)) allValid = false;
     });
@@ -301,6 +302,12 @@
     wireBillingCheckbox();
     wireLiveAddressSync();
     wireBillingFieldEditDetection();
+
+    // Code-attachment pill (PR-B): bootstrap from sessionStorage carry-forward,
+    // wire the collapse/expand toggle, and the live character counter.
+    bootstrapAttachment();
+    wireAttachmentToggle();
+    wirePasteCounter();
 
     form.addEventListener('submit', function (event) {
       // Always preventDefault — we POST as JSON via fetch(), not as
@@ -396,6 +403,133 @@
     }
   }
 
+  // ---------- Code-attachment pill (PR-B) ----------
+
+  var PASTE_MAX = 30000;
+  var PASTE_WARN_AT = 29500;
+  var PASTE_MIN = 20;
+
+  function formatCount(n) {
+    return n.toLocaleString('en-US') + ' / 30,000';
+  }
+
+  function updatePasteCounter(textarea) {
+    var len = textarea.value.length;
+    var pillCount = $('codeAttachmentCount');
+    if (pillCount) pillCount.textContent = String(len);
+    var counter = document.querySelector('.paste-counter[data-for="reviewPasteInput"]');
+    if (counter) {
+      counter.textContent = formatCount(len);
+      counter.classList.toggle('warn', len >= PASTE_WARN_AT);
+    }
+  }
+
+  function setAttachmentEmptyState() {
+    // Direct landing or legacy hash-only stash — invite the user to paste.
+    var check = $('codeAttachmentCheck');
+    var label = $('codeAttachmentLabel');
+    var edit = $('codeAttachmentEdit');
+    var panel = $('codeAttachmentPanel');
+    var toggle = $('codeAttachmentToggle');
+    if (check) check.hidden = true;
+    if (edit) edit.hidden = true;
+    if (label) label.textContent = 'Paste your invention to start your review';
+    if (panel) panel.hidden = false;
+    if (toggle) toggle.setAttribute('aria-expanded', 'true');
+  }
+
+  function setAttachmentFilledState(length) {
+    var pillCount = $('codeAttachmentCount');
+    if (pillCount) pillCount.textContent = String(length);
+    // Panel stays collapsed by default; the user can expand to view/edit.
+  }
+
+  function wireAttachmentToggle() {
+    var toggle = $('codeAttachmentToggle');
+    var panel = $('codeAttachmentPanel');
+    var edit = $('codeAttachmentEdit');
+    if (!toggle || !panel) return;
+    toggle.addEventListener('click', function () {
+      var nowHidden = !panel.hidden;
+      panel.hidden = nowHidden;
+      toggle.setAttribute('aria-expanded', nowHidden ? 'false' : 'true');
+      if (edit && !edit.hidden) {
+        edit.textContent = nowHidden ? 'View / edit ▾' : 'View / edit ▴';
+      }
+    });
+  }
+
+  function wirePasteCounter() {
+    var textarea = $('reviewPasteInput');
+    if (!textarea) return;
+    textarea.addEventListener('input', function () {
+      updatePasteCounter(textarea);
+      if (textarea.classList.contains('invalid')) clearError('reviewPasteInput');
+    });
+  }
+
+  function bootstrapAttachment() {
+    var textarea = $('reviewPasteInput');
+    if (!textarea) return;
+    var stashed = readStashedInput();
+    if (stashed && typeof stashed.content === 'string' && stashed.content.length >= 1) {
+      textarea.value = stashed.content;
+      setAttachmentFilledState(stashed.content.length);
+    } else {
+      setAttachmentEmptyState();
+    }
+    updatePasteCounter(textarea);
+  }
+
+  function validatePasteInput() {
+    var textarea = $('reviewPasteInput');
+    if (!textarea) return true;
+    if (textarea.value.trim().length < PASTE_MIN) {
+      // Make sure the panel is open so the error + textarea are visible.
+      var panel = $('codeAttachmentPanel');
+      var toggle = $('codeAttachmentToggle');
+      if (panel && panel.hidden) {
+        panel.hidden = false;
+        if (toggle) toggle.setAttribute('aria-expanded', 'true');
+      }
+      setError('reviewPasteInput', 'Please paste at least 20 characters.');
+      return false;
+    }
+    clearError('reviewPasteInput');
+    return true;
+  }
+
+  // SHA-256 hex of a string via SubtleCrypto. Mirrors the helper in
+  // analyze.html so the hash format matches what was stashed there.
+  function sha256Hex(text) {
+    var enc = new TextEncoder();
+    return crypto.subtle.digest('SHA-256', enc.encode(text)).then(function (buf) {
+      var bytes = Array.from(new Uint8Array(buf));
+      return bytes
+        .map(function (b) {
+          return b.toString(16).padStart(2, '0');
+        })
+        .join('');
+    });
+  }
+
+  function clearHashMismatchNotice() {
+    var existing = document.getElementById('hashMismatchNotice');
+    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+  }
+
+  function showHashMismatchNotice() {
+    clearHashMismatchNotice();
+    var submitWrap = document.querySelector('.signup-submit-wrap');
+    if (!submitWrap) return;
+    var notice = document.createElement('div');
+    notice.id = 'hashMismatchNotice';
+    notice.className = 'hash-mismatch-notice';
+    notice.textContent =
+      'Note: this content differs from what you scored on the free check — that’s fine, just confirming.';
+    submitWrap.parentNode.insertBefore(notice, submitWrap);
+  }
+
   function submitSignup(form) {
     // Nit 2 (Bucket 2 Component C): build the payload and check
     // input_hash BEFORE flipping the button to "Submitting…". If the
@@ -406,6 +540,7 @@
     var submitBtn = $('signupSubmit');
     var originalText = submitBtn ? submitBtn.textContent : '';
     hideBanner();
+    clearHashMismatchNotice();
 
     var payload = buildSubmissionPayload(form);
 
@@ -418,15 +553,33 @@
       return;
     }
 
+    // Soft hash-mismatch notice (PR-B). If the user edited the carried-
+    // forward content, surface a non-blocking note above the submit
+    // button. Submit always proceeds — the analyze-time input_hash is
+    // the historical fingerprint; paste_input is the live content.
+    var stashed = readStashedInput();
+    var pasteEl = $('reviewPasteInput');
+    var pasteValue = pasteEl ? pasteEl.value : '';
+    var noticeCheck = stashed && typeof stashed.hash === 'string' && pasteValue
+      ? sha256Hex(pasteValue).then(function (live) {
+          if (live !== stashed.hash) showHashMismatchNotice();
+        }, function () {
+          // Hash compute failed (e.g., insecure context) — skip notice silently.
+        })
+      : Promise.resolve();
+
     if (submitBtn) {
       submitBtn.textContent = 'Submitting…';
     }
 
-    fetch(form.action, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
+    noticeCheck
+      .then(function () {
+        return fetch(form.action, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      })
       .then(function (res) {
         return res.json().then(function (body) {
           return { status: res.status, body: body };
@@ -435,14 +588,19 @@
       .then(function (response) {
         if (response.status === 200 && response.body && response.body.redirect_url) {
           // Beta-bypass success — stash report_id locally so /review.html
-          // can auto-resume even when visited without ?id=…, then
-          // navigate into the Q&A flow.
+          // can auto-resume even when visited without ?id=…, clear the
+          // carry-forward stash (PR-B), then navigate into the Q&A flow.
           if (response.body.report_id) {
             try {
               localStorage.setItem('patent-precheck-active-review', response.body.report_id);
             } catch (err) {
               // localStorage can throw in private/incognito modes — non-fatal.
             }
+          }
+          try {
+            sessionStorage.removeItem('patent-precheck-review-input');
+          } catch (err) {
+            // sessionStorage can throw in private/incognito modes — non-fatal.
           }
           window.location.href = response.body.redirect_url;
           return;

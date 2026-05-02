@@ -41,6 +41,20 @@
     fieldset.field-group .field{margin-bottom:12px}
     .checkbox-row{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--navy);cursor:pointer;padding:8px 0;min-height:44px}
     .checkbox-row input[type="checkbox"]{width:18px;height:18px;cursor:pointer;accent-color:var(--green)}
+
+    /* Code-attachment pill (PR-B carry-forward) */
+    .code-pill{display:flex;align-items:center;gap:10px;width:100%;background:#F4F7FF;border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-family:var(--sans);font-size:14px;color:var(--navy);cursor:pointer;text-align:left;transition:border-color .15s,background .15s;min-height:44px;margin-bottom:12px}
+    .code-pill:hover{border-color:var(--green);background:#EEF4FF}
+    .code-pill-check{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--green);color:#fff;font-size:12px;font-weight:700;flex-shrink:0}
+    .code-pill-check[hidden]{display:none}
+    .code-pill-label{flex:1;font-weight:500;line-height:1.4}
+    .code-pill-edit{font-size:13px;font-weight:600;color:var(--green);flex-shrink:0}
+    .code-pill-edit[hidden]{display:none}
+    .paste-textarea{font-family:'SF Mono','Menlo','Consolas',monospace;font-size:13px;line-height:1.55;min-height:240px;resize:vertical}
+    .paste-meta{display:flex;justify-content:flex-end;align-items:center;font-size:12px;color:#718096;margin-top:6px}
+    .paste-counter.warn{color:var(--red);font-weight:600}
+    .hash-mismatch-notice{font-size:13px;background:rgba(239,159,39,.08);border:1px solid rgba(239,159,39,.25);border-radius:10px;padding:10px 14px;color:#744210;line-height:1.55;margin-top:12px}
+
     @media(max-width:760px){
       .field-row{grid-template-columns:1fr!important}
       fieldset.field-group{padding:16px 14px 4px!important}
@@ -143,6 +157,31 @@
     <p class="signup-intro">All fields are required. Your information is used only to prepare your report and contact you about the review. See our <a href="privacy.html" style="color:var(--green);text-decoration:none">privacy policy</a> for details.</p>
 
     <form id="signupForm" action="/.netlify/functions/review-signup" method="POST" novalidate>
+
+      <fieldset class="field-group" id="codeAttachmentGroup">
+        <legend>Your invention</legend>
+
+        <button type="button" id="codeAttachmentToggle" class="code-pill"
+                aria-expanded="false" aria-controls="codeAttachmentPanel">
+          <span class="code-pill-check" id="codeAttachmentCheck">&#10003;</span>
+          <span class="code-pill-label" id="codeAttachmentLabel">
+            Your code is attached &mdash; <span id="codeAttachmentCount">0</span> characters
+          </span>
+          <span class="code-pill-edit" id="codeAttachmentEdit">View / edit &#9662;</span>
+        </button>
+
+        <div id="codeAttachmentPanel" hidden>
+          <p class="field-hint">This is the content we'll review. Edit if needed before continuing.</p>
+          <textarea id="reviewPasteInput" name="paste_input"
+                    class="field-input paste-textarea"
+                    rows="14" maxlength="30000" required spellcheck="false"
+                    placeholder="Paste the code, document, or AI conversation you want reviewed."></textarea>
+          <div class="paste-meta">
+            <span class="paste-counter" data-for="reviewPasteInput">0 / 30,000</span>
+          </div>
+          <span class="field-error" data-for="reviewPasteInput"></span>
+        </div>
+      </fieldset>
 
       <div class="field-row">
         <div class="field">
