@@ -893,14 +893,21 @@ async function sha256Hex(text) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// Upgrade CTA — write input_hash to sessionStorage, then preserve any ?access= URL param when navigating to signup
+// Upgrade CTA — stash code + hash to sessionStorage so review-signup.html
+// can prefill the carry-forward textarea, then preserve any ?access= URL
+// param when navigating to signup.
 const upgradeBtn = $('upgradeToReviewBtn');
 if (upgradeBtn) {
   upgradeBtn.addEventListener('click', async () => {
     if (content && content.length > 0) {
       try {
         const hash = await sha256Hex(content);
-        sessionStorage.setItem('patent-precheck-review-input', JSON.stringify({hash, length: content.length}));
+        sessionStorage.setItem('patent-precheck-review-input', JSON.stringify({
+          content: content,
+          length: content.length,
+          hash: hash,
+          ts: Date.now(),
+        }));
       } catch (err) {
         // Hashing failed (e.g., insecure context) — fall through to navigation without sessionStorage write
       }
